@@ -75,6 +75,11 @@ def process_match(match_id, tournament, w):
                     match_id, tournament, period, round(t, 1),
                     round(match_minute(period, t), 2), etype, team_id,
                 ])
+            elif etype == "Bad Behaviour":
+                card = (ev.get("bad_behaviour") or {}).get("card", {}).get("name")
+                if card:
+                    cards.append((period, t))
+                    w["cards"].writerow([match_id, period, round(t, 1), team_id, card])
             continue
 
         dur = ev.get("duration") or 0.0
@@ -94,6 +99,7 @@ def process_match(match_id, tournament, w):
             ])
         elif etype == "Own Goal For":
             goals.append((period, t))
+            w["owngoals"].writerow([match_id, period, round(t, 1), team_id])
         elif etype == "Pass":
             p = ev["pass"]
             ok = 0 if "outcome" in p else 1
@@ -111,8 +117,10 @@ def process_match(match_id, tournament, w):
                     loc[0], loc[1], end[0], end[1], 1,
                 ])
         elif etype == "Foul Committed":
-            if "card" in (ev.get("foul_committed") or {}):
+            card = (ev.get("foul_committed") or {}).get("card", {}).get("name")
+            if card:
                 cards.append((period, t))
+                w["cards"].writerow([match_id, period, round(t, 1), team_id, card])
 
     # dead-ball gaps between consecutive in-play events
     play.sort(key=lambda x: (x[0], x[1]))
@@ -149,6 +157,8 @@ def main():
         "admin": ["match_id", "tournament", "period", "t", "match_min", "type", "team_id"],
         "moves": ["match_id", "period", "t", "team_id", "sx", "sy", "ex", "ey", "ok"],
         "shots": ["match_id", "tournament", "period", "t", "team_id", "xg", "goal", "x", "y", "pen"],
+        "cards": ["match_id", "period", "t", "team_id", "card"],
+        "owngoals": ["match_id", "period", "t", "team_id"],
     }
     handles, writers = {}, {}
     for name, header in files.items():

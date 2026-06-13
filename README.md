@@ -74,6 +74,35 @@ made during the pauses so far. The opener:
 python src/wc2026.py
 ```
 
+### Live win-probability eval (the chess-engine view)
+
+`src/winprob.py` trains an in-game win-probability model on the 551
+historical matches: multinomial logistic regression on goal difference,
+cumulative xG difference, red-card man advantage and time remaining,
+predicting P(home win / draw / away win). It is well calibrated (log loss
+0.79; predicted vs observed home-win rate within ~2 points across every
+decile) and saved as plain JSON so scoring needs only numpy.
+
+`src/live_eval.py` drives it from FotMob's per-shot xG and event feed to
+draw a chess.com-style evaluation bar for each match: one line, up means
+the home side is favoured to win, down the away side, zero a coin flip. It
+moves on goals, red cards and the slow drip of chance quality, and the
+single biggest swing is annotated the way an engine flags the losing move,
+with the narrative chosen from what actually happened (a collapse is called
+a collapse, a comeback a comeback).
+
+![eval](figures/wc2026_eval_south_korea_czechia.png)
+
+Czechia led 1-0 from the 59th minute and the eval crossed into their half;
+South Korea equalised at 67' and won it at 80'. The model reads the
+turning point as the equalizer, not the winner. Per-match swings are
+written to `wc2026/winprob_swings.csv`.
+
+```
+python src/live_eval.py            # every finished match so far
+python src/live_eval.py 4667757    # a single FotMob match id
+```
+
 ## The trap: breaks live at minute 75
 
 The naive analysis is seductive. Pool everything and you get: 45% of breaks
@@ -116,7 +145,8 @@ halves with like:
 2. `xt_model.py`: Expected Threat from scratch. Markov reward process on a
    16x12 grid, transitions estimated from 931k move attempts (failed moves
    absorb to zero; shootout and penalty kicks excluded from the shot model),
-   solved by value iteration.
+   solved by value iteration. `winprob.py` adds the in-game win-probability
+   model used by the live eval graphs.
 
    ![xt](figures/xt_surface.png)
 
