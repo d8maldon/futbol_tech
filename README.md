@@ -46,16 +46,29 @@ FIFA protocol puts them.
 ## World Cup 2026, live
 
 StatsBomb-grade event streams for this tournament will not be public for
-years, but live match feeds log the breaks directly ("Delay in match for a
-drinks break", with a minute stamp). `src/wc2026.py` pulls every completed
-match from the public ESPN feed, extracts breaks, substitutions and goals,
-writes small CSVs to `wc2026/`, and regenerates the tracker:
+years, but two live feeds cover the analysis:
+
+- FIFA's timeline API logs every hydration break officially (event type 83,
+  "Match paused for a hydration break") and the resume (type 78), both with
+  millisecond wall clocks, so break durations and subs-made-during-the-pause
+  are exact, not inferred.
+- ESPN's commentary describes every shot with a location phrase ("centre of
+  the box", "very close range"). Those zones are calibrated against the
+  13.6k open-play shots in the historical data (very close range 0.29,
+  centre of box 0.13, outside 0.035, 35+ yards 0.007) to weight each chance,
+  which is enough to draw the momentum rivers for live matches.
+
+`src/wc2026.py` pulls every finished match, writes small CSVs to `wc2026/`,
+and regenerates the tracker plus one river per match:
 
 ![tracker](figures/wc2026_tracker.png)
 
-Through day 2: three matches, six drinks breaks, one in each half of every
-match including an 8pm kickoff, and all of them called at minutes 23-25 of
-the half, a few minutes earlier than the historical norm. Re-run any time:
+Through day 2: three matches, six official breaks, one in each half of
+every match including an 8pm kickoff, all called at minutes 23-25 of the
+half, a few minutes earlier than the historical norm, and zero substitutions
+made during the pauses so far. The opener:
+
+![opener](figures/wc2026_river_mexico_south_africa.png)
 
 ```
 python src/wc2026.py

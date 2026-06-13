@@ -1,4 +1,4 @@
-id,date_utc,venue,home,away,score,status,local_hour,n_breaks,n_subs,subs_after_breaks
-760415,2026-06-11T19:00Z,Estadio Banorte,Mexico,South Africa,2-0,STATUS_FULL_TIME,13,2,9,0
-760414,2026-06-12T02:00Z,Estadio Akron,South Korea,Czechia,2-1,STATUS_FULL_TIME,20,2,9,0
-760416,2026-06-12T19:00Z,BMO Field,Canada,Bosnia-Herzegovina,1-1,STATUS_FULL_TIME,15,2,10,2
+fifa_id,espn_id,date,home,away,score,venue,local_hour,n_breaks,n_subs,subs_during_breaks,subs_5min_after
+400021443,760415,2026-06-11,Mexico,South Africa,2-0,Estadio Banorte,13,2,9,0,0
+400021441,760414,2026-06-12,South Korea,Czechia,2-1,Estadio Akron,20,2,9,0,0
+400021449,760416,2026-06-12,Canada,Bosnia-Herzegovina,1-1,BMO Field,15,2,10,0,3
