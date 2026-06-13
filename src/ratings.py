@@ -1,0 +1,251 @@
+"""Self-adjusting team-strength ratings for the World Cup predictor.
+
+This is the pre-match counterpart to the in-game winprob.py. Where winprob
+evaluates a match in progress, this estimates who should win BEFORE kickoff,
+from a single number per team: a World-Football-Elo rating that updates itself
+after every result. Feed it the games already played and it learns; feed it a
+fixture and it returns P(home win / draw / away win).
+
+Elo only emits a scalar win-expectancy, which silently buries the draw. Football
+draws ~27% of the time, so we split the expectancy into three calibrated
+probabilities. Two routes, both fit ONCE on pre-2026 men's matches and frozen
+(never refit while scoring live games, to keep the backtest honest):
+  - a closed-form Davidson draw model (no fitting, the fallback), and
+  - a 3-class multinomial logit on the rating gap, reusing winprob.py's exact
+    softmax + JSON contract so the live scorer needs no sklearn.
+
+Seed pool = the 314 men's national-team matches already on disk (WC 2018/2022,
+Euro 2020/2024, Copa America 2024, AFCON 2023). Women's and club competitions
+are excluded (separate populations). Teams with no history get a provisional
+prior and self-correct as they play.
+
+    python src/ratings.py        # seed, fit the draw models, rank, predict
+"""
+import json
+import os
+import unicodedata
+
+import numpy as np
+import pandas as pd
+
+from winprob import softmax  # one source of truth for the scoring contract
+
+ROOT = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
+OUT = os.path.join(os.path.dirname(__file__), "..", "wc2026")
+
+# men's national-team finals tournaments only; exclude women's + club comps
+MEN_TOURNAMENTS = {"WC 2018", "WC 2022", "Euro 2020", "Euro 2024",
+                   "Copa America 2024", "AFCON 2023"}
+# Elo K by competition importance (eloratings.net scale)
+K_WORLD_CUP = 60
+K_CONTINENTAL = 50
+HOME_ADV = 65          # rating bump, applied ONLY to a host on home soil
+PROVISIONAL = 1450.0   # prior for teams with no match history (self-corrects)
+BASE = 1500.0
+
+# host nations get the home bump when nominally "home"
+HOSTS_2026 = {"United States", "Canada", "Mexico"}
+
+# normalise FIFA / FotMob / ESPN spellings onto the StatsBomb names used as keys
+ALIASES = {
+    "czechia": "Czech Republic",
+    "korea republic": "South Korea", "south korea": "South Korea",
+    "ir iran": "Iran", "iran islamic republic": "Iran",
+    "usa": "United States", "united states of america": "United States",
+    "cote divoire": "Côte d'Ivoire", "ivory coast": "Côte d'Ivoire",
+    "turkiye": "Turkey", "türkiye": "Turkey",
+    "cabo verde": "Cape Verde Islands", "cape verde": "Cape Verde Islands",
+    "dr congo": "Congo DR", "congo dr": "Congo DR",
+    "democratic republic of the congo": "Congo DR",
+    "bosnia and herzegovina": "Bosnia-Herzegovina",
+    "bosnia herzegovina": "Bosnia-Herzegovina",
+    "china pr": "China", "north macedonia": "North Macedonia",
+}
+
+
+def fold(name):
+    """ascii-fold + lowercase + strip punctuation, for robust name matching"""
+    s = unicodedata.normalize("NFKD", str(name))
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    return "".join(c for c in s.lower() if c.isalnum() or c == " ").strip()
+
+
+def build_normalizer(known):
+    """returns norm(name) -> canonical key, given the set of known rating keys"""
+    by_fold = {fold(k): k for k in known}
+    alias_fold = {fold(k): v for k, v in ALIASES.items()}
+
+    def norm(name):
+        f = fold(name)
+        if f in alias_fold:
+            return alias_fold[f]
+        if f in by_fold:
+            return by_fold[f]
+        return str(name).strip()
+    return norm
+
+
+# ----------------------------------------------------------------- elo engine
+def expected(dr):
+    """Elo win-expectancy from rating gap dr (incl. any home bump)"""
+    return 1.0 / (10.0 ** (-dr / 400.0) + 1.0)
+
+
+def g_mult(goal_diff):
+    """goal-difference multiplier: bigger wins move ratings more"""
+    n = abs(int(goal_diff))
+    if n <= 1:
+        return 1.0
+    if n == 2:
+        return 1.5
+    return (11.0 + n) / 8.0
+
+
+def result_w(hs, as_):
+    return 1.0 if hs > as_ else (0.0 if hs < as_ else 0.5)
+
+
+def elo_update(rh, ra, hs, as_, k, ha=0.0):
+    """one self-adjusting step; returns (new_home, new_away)"""
+    dr = (rh + ha) - ra
+    delta = k * g_mult(hs - as_) * (result_w(hs, as_) - expected(dr))
+    return rh + delta, ra - delta
+
+
+def seed_ratings(matches):
+    """replay the men's pool in date order -> ratings dict + walk-forward pairs.
+
+    Returns (ratings, pairs) where pairs is a list of (pre_match_dr, outcome)
+    recorded BEFORE each update -- the leakage-free data to fit the draw models.
+    """
+    men = matches[matches.tournament.isin(MEN_TOURNAMENTS)].copy()
+    men = men.dropna(subset=["home_score", "away_score"])
+    men = men.sort_values(["date", "kick_off"], kind="mergesort")
+    ratings, pairs = {}, []
+    for r in men.itertuples():
+        rh = ratings.get(r.home, BASE)
+        ra = ratings.get(r.away, BASE)
+        hs, as_ = int(r.home_score), int(r.away_score)
+        dr = rh - ra  # HA=0: tournament games on neutral/host ground
+        pairs.append((dr, "H" if hs > as_ else ("A" if as_ > hs else "D")))
+        k = K_WORLD_CUP if r.tournament.startswith("WC") else K_CONTINENTAL
+        ratings[r.home], ratings[r.away] = elo_update(rh, ra, hs, as_, k, ha=0.0)
+    return ratings, pairs
+
+
+# ------------------------------------------------------- draw-aware 3-way map
+def davidson_proba(dr, kappa):
+    """closed-form Elo->P(H/D/A); kappa controls draw mass (no fitting)"""
+    s = 10.0 ** ((dr / 400.0) / 2.0)
+    z = s + 1.0 / s + kappa
+    return {"H": s / z, "D": kappa / z, "A": (1.0 / s) / z}
+
+
+def fit_kappa(pairs):
+    """1-D search for the kappa minimising Davidson log loss on pre-2026 data"""
+    drs = np.array([d for d, _ in pairs])
+    out = np.array([o for _, o in pairs])
+    best_k, best_ll = 1.0, 1e9
+    for kappa in np.linspace(0.3, 2.0, 171):
+        ll = 0.0
+        for dr, o in zip(drs, out):
+            p = davidson_proba(dr, kappa)[o]
+            ll -= np.log(max(p, 1e-12))
+        ll /= len(out)
+        if ll < best_ll:
+            best_ll, best_k = ll, kappa
+    return round(float(best_k), 3), round(float(best_ll), 4)
+
+
+def fit_prematch_logit(pairs, n_matches):
+    """3-class multinomial logit on x=[dr/400], in winprob.py's JSON schema"""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import log_loss
+    X = np.array([[d / 400.0] for d, _ in pairs])
+    y = np.array([o for _, o in pairs])
+    clf = LogisticRegression(max_iter=5000, C=1.0)
+    clf.fit(X, y)
+    ll = round(float(log_loss(y, clf.predict_proba(X))), 4)
+    return {
+        "classes": list(clf.classes_),
+        "coef": clf.coef_.tolist(),
+        "intercept": clf.intercept_.tolist(),
+        "features": ["dr_over_400"],
+        "n_matches": int(n_matches),
+        "n_samples": int(X.shape[0]),
+    }, ll
+
+
+def load_prematch_model():
+    p = os.path.join(OUT, "prematch_model.json")
+    if os.path.exists(p):
+        with open(p) as f:
+            return json.load(f)
+    return None
+
+
+def prematch_proba(dr, model=None, kappa=1.0):
+    """P(H/D/A) for a rating gap dr; logit if a model is given, else Davidson"""
+    if model is not None:
+        x = np.array([dr / 400.0])
+        z = np.array(model["coef"]) @ x + np.array(model["intercept"])
+        return dict(zip(model["classes"], softmax(z)))
+    return davidson_proba(dr, kappa)
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    matches = pd.read_csv(os.path.join(ROOT, "matches.csv"))
+    ratings, pairs = seed_ratings(matches)
+    norm = build_normalizer(ratings)
+    print("seed pool: {} matches -> {} teams".format(len(pairs), len(ratings)))
+
+    kappa, kll = fit_kappa(pairs)
+    model, mll = fit_prematch_logit(pairs, len(pairs))
+    print("Davidson kappa = {} (log loss {});  logit log loss {}".format(
+        kappa, kll, mll))
+    with open(os.path.join(OUT, "prematch_model.json"), "w") as f:
+        json.dump(model, f, indent=2)
+
+    # apply already-played WC2026 results so the saved state is self-adjusted
+    applied, as_of = 0, "pre-tournament"
+    live = os.path.join(OUT, "matches.csv")
+    if os.path.exists(live):
+        wc = pd.read_csv(live)
+        wc = wc[wc.score.astype(str).str.contains("-", na=False)]
+        for r in wc.sort_values("date").itertuples():
+            try:
+                hs, as_ = (int(v) for v in str(r.score).split("-")[:2])
+            except ValueError:
+                continue
+            h, a = norm(r.home), norm(r.away)
+            rh, ra = ratings.get(h, PROVISIONAL), ratings.get(a, PROVISIONAL)
+            ha = HOME_ADV if h in HOSTS_2026 else 0.0
+            ratings[h], ratings[a] = elo_update(rh, ra, hs, as_, K_WORLD_CUP, ha)
+            applied, as_of = applied + 1, r.date
+    print("applied {} played WC2026 results (as of {})".format(applied, as_of))
+
+    with open(os.path.join(OUT, "elo_ratings.json"), "w") as f:
+        json.dump({"ratings": {k: round(v, 1) for k, v in ratings.items()},
+                   "meta": {"as_of": as_of, "n_seed_matches": len(pairs),
+                            "n_wc_applied": applied, "kappa": kappa,
+                            "pool": "men", "base": BASE}}, f, indent=2)
+
+    rank = sorted(ratings.items(), key=lambda kv: -kv[1])
+    print("\ntop 20 by rating:")
+    for i, (t, r) in enumerate(rank[:20], 1):
+        print("  {:2d}. {:24s} {:6.0f}".format(i, t, r))
+
+    print("\nsample fixtures (P home / draw / away):")
+    for h, a in (("Brazil", "South Korea"), ("Argentina", "Mexico"),
+                 ("United States", "Wales"), ("France", "England")):
+        dr = ratings.get(h, PROVISIONAL) - ratings.get(a, PROVISIONAL)
+        if h in HOSTS_2026:
+            dr += HOME_ADV
+        p = prematch_proba(dr, model)
+        print("  {:14s} vs {:14s}  H {:.2f}  D {:.2f}  A {:.2f}".format(
+            h, a, p["H"], p["D"], p["A"]))
+
+
+if __name__ == "__main__":
+    main()
