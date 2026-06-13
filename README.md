@@ -43,6 +43,24 @@ FIFA protocol puts them.
 
 ![hero](figures/hero.png)
 
+## World Cup 2026, live
+
+StatsBomb-grade event streams for this tournament will not be public for
+years, but live match feeds log the breaks directly ("Delay in match for a
+drinks break", with a minute stamp). `src/wc2026.py` pulls every completed
+match from the public ESPN feed, extracts breaks, substitutions and goals,
+writes small CSVs to `wc2026/`, and regenerates the tracker:
+
+![tracker](figures/wc2026_tracker.png)
+
+Through day 2: three matches, six drinks breaks, one in each half of every
+match including an 8pm kickoff, and all of them called at minutes 23-25 of
+the half, a few minutes earlier than the historical norm. Re-run any time:
+
+```
+python src/wc2026.py
+```
+
 ## The trap: breaks live at minute 75
 
 The naive analysis is seductive. Pool everything and you get: 45% of breaks

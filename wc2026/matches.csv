@@ -1,0 +1,4 @@
+id,date_utc,venue,home,away,score,status,local_hour,n_breaks,n_subs,subs_after_breaks
+760415,2026-06-11T19:00Z,Estadio Banorte,Mexico,South Africa,2-0,STATUS_FULL_TIME,13,2,9,0
+760414,2026-06-12T02:00Z,Estadio Akron,South Korea,Czechia,2-1,STATUS_FULL_TIME,20,2,9,0
+760416,2026-06-12T19:00Z,BMO Field,Canada,Bosnia-Herzegovina,1-1,STATUS_FULL_TIME,15,2,10,2
