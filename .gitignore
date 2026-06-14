@@ -2,3 +2,4 @@ data/
 __pycache__/
 *.pyc
 figures/_*.png
+figures/board_*.png
