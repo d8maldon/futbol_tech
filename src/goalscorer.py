@@ -145,7 +145,7 @@ def render(df, note, out):
     ax.set_title("Anytime goalscorer: who's most likely to score?",
                  color=INK, loc="left", pad=18, fontsize=15,
                  fontfamily="Bahnschrift", fontweight="bold")
-    ax.text(0, 1.02, "P(>=1 goal) = 1 - exp(-xG per appearance), shrunk to the mean | rates from 314 men's national-team matches | penalties included",
+    ax.text(0, 1.02, "P(>=1 goal) = 1 - exp(-xG per appearance), shrunk to the mean | 2018-2024 rates, filtered to actual WC2026 squads | penalties included",
             transform=ax.transAxes, color=MUT, fontsize=8.3,
             fontfamily="Bahnschrift")
     fig.text(0.5, 0.01, "no per-player minutes (rate = xG per match-with-a-shot) | even the top name is a coin-flip -- finishing is a long tail | github.com/d8maldon/hidden-timeout",
@@ -158,8 +158,16 @@ def render(df, note, out):
 def main():
     os.makedirs(FIG, exist_ok=True)
     df, mu = build_player_table()
-    print("qualified players (>= {} apps): {}  | league mean xG/app {:.3f}".format(
-        MIN_APPS, len(df), mu))
+    n_all = len(df)
+    # restrict to players actually in a WC2026 squad (team-scoped: drops retired
+    # players AND non-qualified nations like Venezuela)
+    from squads import current_squads_by_team, in_wc2026
+    by_team = current_squads_by_team()
+    if by_team:
+        df = df[df.apply(lambda r: in_wc2026(r.player, r.team, by_team), axis=1)].reset_index(drop=True)
+    else:
+        print("WARNING: no wc2026_squads.json -> run src/squads.py; board UNFILTERED")
+    print("WC2026-squad goalscorers: {} (from {} qualified)".format(len(df), n_all))
     print("\ntop 12 anytime-goalscorer probabilities:")
     for _, r in df.head(12).iterrows():
         print("  {:24s} {:>14}  {:.0%}  ({} g, {:.1f} xG in {} apps)".format(

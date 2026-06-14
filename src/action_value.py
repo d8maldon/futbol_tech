@@ -163,10 +163,16 @@ def pitch(ax):
         s.set_visible(False)
 
 
-def render_leaderboard(players, out):
+def render_leaderboard(players, out, squad_keys=None):
     rows = [{"player": k, "team": v["team"], "xt": v["xt"], "n": v["n"]}
             for k, v in players.items() if v["n"] >= MIN_ACTIONS]
     df = pd.DataFrame(rows).sort_values("xt", ascending=False).reset_index(drop=True)
+    df.to_csv(os.path.join(OUT, "action_value_all.csv"), index=False)
+    # restrict to players actually in a WC2026 squad (drops retired/absent names
+    # like Kroos, Di Maria, and whole non-qualified nations); team-scoped match
+    if squad_keys:
+        from squads import in_wc2026
+        df = df[df.apply(lambda r: in_wc2026(r.player, r.team, squad_keys), axis=1)].reset_index(drop=True)
     df.to_csv(os.path.join(OUT, "action_value.csv"), index=False)
     top = df.head(18).iloc[::-1]
     fig, ax = plt.subplots(figsize=(10, 7.4), dpi=170)
@@ -185,10 +191,10 @@ def render_leaderboard(players, out):
     for s in ("top", "right", "left"):
         ax.spines[s].set_visible(False)
     ax.spines["bottom"].set_color(MUT); ax.tick_params(colors=MUT)
-    ax.set_title("Who moves the ball into danger?  (soccer EPV-added, on-ball)",
+    ax.set_title("Who moves the ball into danger?  WC2026 squads only  (soccer EPV-added)",
                  color=INK, loc="left", pad=18, fontsize=14,
                  fontfamily="Bahnschrift", fontweight="bold")
-    ax.text(0, 1.02, "value of an action = xT(end) - xT(start), summed over a player's passes & carries | 314 men's national-team matches",
+    ax.text(0, 1.02, "value of an action = xT(end) - xT(start), summed over passes & carries | rates from 2018-2024 history, filtered to actual WC2026 squads",
             transform=ax.transAxes, color=MUT, fontsize=8.3, fontfamily="Bahnschrift")
     fig.text(0.5, 0.01, "the soccer translation of NBA EPV (Cervone-D'Amour-Bornn-Goldsberry) | on-ball, location-only | github.com/d8maldon/hidden-timeout",
              ha="center", color=MUT, fontsize=7.5, fontfamily="Bahnschrift")
@@ -261,9 +267,15 @@ def main():
     except Exception:
         pass
     os.makedirs(FIG, exist_ok=True)
+    from squads import current_squads_by_team
+    by_team = current_squads_by_team()
+    if not by_team:
+        print("WARNING: no wc2026_squads.json -> run src/squads.py; showing UNFILTERED board")
     players, best = scan()
-    df = render_leaderboard(players, os.path.join(FIG, "wc2026_action_value.png"))
-    print("qualified players (>= {} actions): {}".format(MIN_ACTIONS, len(df)))
+    df = render_leaderboard(players, os.path.join(FIG, "wc2026_action_value.png"),
+                            by_team)
+    print("WC2026-squad players on the board: {} (from {} qualified)".format(
+        len(df), sum(1 for v in players.values() if v["n"] >= MIN_ACTIONS)))
     print("\ntop 10 by Expected Threat added (passes + carries):")
     for _, r in df.head(10).iterrows():
         print("  {:26s} {:>12}  +{:.2f} xT  ({} actions)".format(
