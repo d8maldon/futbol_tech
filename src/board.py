@@ -43,11 +43,13 @@ def slugify(tl):
 
 
 def frames_for(slug):
-    for cand in (os.path.join(CLIP, slug), os.path.join(CLIP, "frames")):
-        fs = sorted(glob.glob(os.path.join(cand, "*.png")))
-        if fs:
-            return fs
-    return []
+    """frames for THIS match only -- never fall back to another match's footage"""
+    fs = sorted(glob.glob(os.path.join(CLIP, slug, "*.png")))
+    if fs:
+        return fs
+    if slug.startswith("canada_bosnia"):          # original clip lives in clips/frames
+        return sorted(glob.glob(os.path.join(CLIP, "frames", "*.png")))
+    return []                                      # no frames -> analytics-only board
 
 
 def best_frame(frames, tries=14):
