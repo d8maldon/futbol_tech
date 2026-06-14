@@ -131,7 +131,9 @@ def build_timeline(match_id):
                        "FirstHalf" if (e.get("time") or 0) <= 45 else "SecondHalf")
         if e.get("type") == "Goal":
             own = bool(e.get("ownGoal"))
-            scoring = (aid if e.get("isHome") else hid) if own else (hid if e.get("isHome") else aid)
+            # isHome already names the team CREDITED with the goal (the
+            # beneficiary for an own goal), so use it directly -- do not flip.
+            scoring = hid if e.get("isHome") else aid
             goals.append({"m": m, "team": scoring,
                           "scorer": (e.get("player") or {}).get("name", ""), "own": own})
         elif e.get("type") == "Card" and e.get("card") in ("Red", "RedYellow"):
