@@ -53,14 +53,22 @@ def foot_point(box):
     return ((x1 + x2) / 2.0, y2)
 
 
-def detect(frame_path, weights=DEFAULT_WEIGHTS, conf=0.25):
+_DET = {}
+
+
+def detect(frame_path, weights=DEFAULT_WEIGHTS, conf=0.25, imgsz=640):
     """returns (players, ball, hw) from one broadcast frame.
 
     players: list of (foot_x, foot_y, box, score); ball: (x,y) or None.
+    imgsz is the INFERENCE size: raising it (e.g. 1920 on 1080p input) finds far
+    more small/distant players -- the file resolution is wasted unless imgsz is
+    raised too, because YOLO otherwise downscales every frame to 640.
     """
     from ultralytics import YOLO
-    model = YOLO(weights)
-    res = model(frame_path, conf=conf, verbose=False)[0]
+    if weights not in _DET:
+        _DET[weights] = YOLO(weights)
+    model = _DET[weights]
+    res = model(frame_path, conf=conf, imgsz=imgsz, verbose=False)[0]
     h, w = res.orig_shape
     players, ball, ball_score = [], None, -1.0
     for b in res.boxes:

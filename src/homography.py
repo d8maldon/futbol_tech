@@ -79,10 +79,11 @@ def spread_ok(pts):
     return s[-1] > 1e-3 and (np.ptp(pts[:, 0]) > 40 and np.ptp(pts[:, 1]) > 40)
 
 
-def keypoint_homography(img, conf=0.5):
-    """returns (H_img->pitch, img_pts_used, pitch_pts_used) or (None, ..)"""
+def keypoint_homography(img, conf=0.5, imgsz=640):
+    """returns (H_img->pitch, img_pts_used, pitch_pts_used) or (None, ..).
+    Higher imgsz finds more pitch keypoints on high-res frames."""
     import cv2
-    res = model()(img, verbose=False)[0]
+    res = model()(img, imgsz=imgsz, verbose=False)[0]
     if res.keypoints is None or res.keypoints.data.shape[0] == 0:
         return None, None, None
     kp = res.keypoints.data[0].cpu().numpy()      # (32, 3): x, y, conf
