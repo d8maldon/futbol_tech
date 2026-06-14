@@ -54,32 +54,43 @@ def foot_point(box):
 
 
 _DET = {}
+# a soccer-tuned detector (player/goalkeeper/referee/ball) beats COCO 'person':
+# it never fires on crowd/bench (no generic person class). Auto-used if present.
+SOCCER_WEIGHTS = os.path.join(ROOT, "data", "models", "soccer_players.pt")
+SOCCER_CLS = {"ball": 0, "goalkeeper": 1, "player": 2, "referee": 3}
 
 
-def detect(frame_path, weights=DEFAULT_WEIGHTS, conf=0.25, imgsz=640):
+def detect(frame_path, weights=None, conf=0.25, imgsz=None):
     """returns (players, ball, hw) from one broadcast frame.
 
     players: list of (foot_x, foot_y, box, score); ball: (x,y) or None.
-    imgsz is the INFERENCE size: raising it (e.g. 1920 on 1080p input) finds far
-    more small/distant players -- the file resolution is wasted unless imgsz is
-    raised too, because YOLO otherwise downscales every frame to 640.
+    Uses the soccer-tuned model when available (players = player + goalkeeper,
+    crowd excluded by design); else falls back to COCO person+sports_ball.
+    imgsz defaults to each model's native size (soccer 800, COCO 640); raising it
+    on high-res input finds more small players but do NOT exceed what the model
+    was trained at, or accuracy drops.
     """
     from ultralytics import YOLO
-    if weights not in _DET:
-        _DET[weights] = YOLO(weights)
-    model = _DET[weights]
-    res = model(frame_path, conf=conf, imgsz=imgsz, verbose=False)[0]
-    h, w = res.orig_shape
+    soccer = weights is None and os.path.exists(SOCCER_WEIGHTS)
+    w = SOCCER_WEIGHTS if soccer else (weights or DEFAULT_WEIGHTS)
+    if w not in _DET:
+        _DET[w] = YOLO(w)
+    model = _DET[w]
+    iz = imgsz or (800 if soccer else 640)
+    res = model(frame_path, conf=conf, imgsz=iz, verbose=False)[0]
+    h, ww = res.orig_shape
+    player_cls = {SOCCER_CLS["player"], SOCCER_CLS["goalkeeper"]} if soccer else {PERSON}
+    ball_cls = SOCCER_CLS["ball"] if soccer else SPORTS_BALL
     players, ball, ball_score = [], None, -1.0
     for b in res.boxes:
         cls = int(b.cls[0])
         score = float(b.conf[0])
         xyxy = [float(v) for v in b.xyxy[0]]
-        if cls == PERSON:
+        if cls in player_cls:
             players.append((*foot_point(xyxy), xyxy, score))
-        elif cls == SPORTS_BALL and score > ball_score:
+        elif cls == ball_cls and score > ball_score:
             ball, ball_score = foot_point(xyxy), score
-    return players, ball, (h, w)
+    return players, ball, (h, ww)
 
 
 def render_detection(frame_path, players, ball, out_path):
@@ -113,7 +124,7 @@ def main():
     ap.add_argument("--detect", action="store_true", help="run stage 1 detection")
     ap.add_argument("--frame", help="a single extracted frame PNG/JPG")
     ap.add_argument("--frames-dir", help="run on every frame in a directory")
-    ap.add_argument("--weights", default=DEFAULT_WEIGHTS)
+    ap.add_argument("--weights", default=None, help="default: soccer model if present, else COCO")
     ap.add_argument("--conf", type=float, default=0.25)
     args = ap.parse_args()
 
