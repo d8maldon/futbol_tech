@@ -136,6 +136,69 @@ halves with like:
 - Formation changes during the pause: no detectable excess (CI -11 to +3
   points).
 
+## Predicting the matches and the champion
+
+`src/ratings.py` rates every nation with self-adjusting World Football Elo,
+seeded by replaying the 314 men's national-team matches in the data and updated
+one step per finished game. Elo emits only a win expectancy, so the rating gap
+is mapped to P(win / draw / away) with a Davidson draw model that auto-upgrades
+to a multinomial logit, reusing the same softmax + JSON contract as `winprob`.
+
+`src/montecarlo.py` simulates the rest of the tournament 10,000 times: the
+remaining group games (Poisson scorelines drawn from the rating gap), the
+2026 head-to-head-first group tiebreakers, and the knockout bracket, tallying
+each nation's title probability.
+
+![champion odds](figures/wc2026_champion.png)
+
+`src/backtest.py` scores the games already played, leakage-free (each pick uses
+only pre-kickoff results); `src/goalscorer.py` gives anytime-goalscorer odds and
+`src/action_value.py` values every pass and carry by the Expected Threat it adds
+(the event-data analogue of NBA Expected Possession Value).
+
+### Is it any good? Out-of-sample validation
+
+Nine World Cup games is far too few to claim anything, so `src/backtest_history.py`
+replays ~49,000 men's internationals (1872-2026, the public martj42 dataset)
+through the same Elo engine, fits the draw model on 2005-2020 and scores the
+**held-out 2021-2026** (5,691 matches it never saw):
+
+![predictor validation](figures/wc2026_predictor_validation.png)
+
+Out-of-sample log loss **0.86** (95% CI 0.85-0.88) against 1.05 for the base
+rate and 1.10 for uniform, with calibration **ECE 0.019**. Properly validated
+and well calibrated. It is *not* a claim to beat the bookmakers: this dataset
+carries no odds, and that is the honest ceiling.
+
+## From the broadcast to a top-down map
+
+No public tracking exists for this World Cup, so the positional layer is built
+straight from video. `src/broadcast_track.py` detects players and the ball with
+a soccer-tuned detector (so crowd and bench are never counted); `src/homography.py`
+finds the pitch homography from a 32-keypoint model and warps each player onto
+pitch coordinates; `src/track_fuse.py` follows them over time with a Kalman
+filter and kit-colour ReID. `src/live_screen.py` runs the same pipeline live on a
+screen region, a video file, or a phone used as a webcam pointed at a TV.
+
+### Validated in metres
+
+`src/validate_topdown.py` measures the top-down against SoccerNet Game State
+Reconstruction ground truth (streamed with `remotezip`, no multi-GB download):
+
+![top-down validation](figures/wc2026_topdown_validation.png)
+
+Mean localisation error **5.1 m** (95% CI 4.8-6.2), 53% within 5 m across eight
+clips, around the GS-HOTA 5 m tolerance: heatmap-grade positioning of the
+visible players.
+
+What did **not** work, tested and reported as such: higher input resolution does
+not help (the detector downscales internally, and a larger inference size mostly
+finds crowd and degrades the homography); jersey-number reading is hopeless at
+broadcast resolution; off-screen players cannot be reconstructed from a single
+frame. `src/board.py` fuses everything into one dossier per match -- the
+win-probability eval, pre-match odds versus the result, the goal/card/sub
+replay, and the tactical snapshot.
+
 ## Method
 
 1. `download.py`, `extract.py`: 551 matches, 10 tournaments, ~1.9M events
@@ -179,6 +242,19 @@ python src/extract.py
 python src/xt_model.py
 python src/analyze.py
 python src/make_figures.py
+
+# prediction
+python src/winprob.py            # in-game win-probability model
+python src/ratings.py            # self-adjusting Elo + draw model
+python src/montecarlo.py         # champion probabilities
+python src/backtest_history.py   # out-of-sample validation on 49k internationals
+
+# live + vision (computer-vision deps; weights pulled from HuggingFace)
+python src/live_eval.py          # win-probability eval per match
+python src/board.py              # per-match analysis board
+python src/homography.py --frame <frame>   # broadcast -> top-down
+python src/validate_topdown.py   # metres-accuracy vs SoccerNet GSR
+python src/live_screen.py --camera 1 --show  # live, phone-as-webcam at a TV
 ```
 
 ## References

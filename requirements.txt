@@ -1,4 +1,15 @@
+# core analysis
 numpy
 pandas
 matplotlib
 requests
+scikit-learn
+scipy
+
+# computer vision (broadcast -> top-down, live input, validation)
+opencv-python
+ultralytics
+torch
+mss
+remotezip
+supervision
