@@ -207,22 +207,24 @@ def main():
     with open(os.path.join(OUT, "prematch_model.json"), "w") as f:
         json.dump(model, f, indent=2)
 
-    # apply already-played WC2026 results so the saved state is self-adjusted
+    # apply already-played WC2026 results so the saved state is self-adjusted.
+    # Source = the FIFA calendar via fixtures.py (the same schedule montecarlo
+    # and backtest use), not the legacy wc2026/matches.csv that only the old
+    # wc2026.py wrote and which lagged the live feed. Lazy import: fixtures
+    # imports this module at top, so importing it here avoids a cycle.
     applied, as_of = 0, "pre-tournament"
-    live = os.path.join(OUT, "matches.csv")
-    if os.path.exists(live):
-        wc = pd.read_csv(live)
-        wc = wc[wc.score.astype(str).str.contains("-", na=False)]
-        for r in wc.sort_values("date").itertuples():
-            try:
-                hs, as_ = (int(v) for v in str(r.score).split("-")[:2])
-            except ValueError:
-                continue
-            h, a = norm(r.home), norm(r.away)
+    try:
+        import fixtures
+        fx = fixtures.played(fixtures.load_fixtures(norm=norm))
+        for r in fx.sort_values("kickoff", kind="mergesort").itertuples():
+            h, a = r.home, r.away
+            hs, as_ = int(r.home_score), int(r.away_score)
             rh, ra = ratings.get(h, PROVISIONAL), ratings.get(a, PROVISIONAL)
             ha = HOME_ADV if h in HOSTS_2026 else 0.0
             ratings[h], ratings[a] = elo_update(rh, ra, hs, as_, K_WORLD_CUP, ha)
-            applied, as_of = applied + 1, r.date
+            applied, as_of = applied + 1, str(r.kickoff)[:10]
+    except Exception as e:
+        print("  (no live results applied -- fixtures unavailable: {})".format(e))
     print("applied {} played WC2026 results (as of {})".format(applied, as_of))
 
     with open(os.path.join(OUT, "elo_ratings.json"), "w") as f:

@@ -79,9 +79,10 @@ python src/wc2026.py
 `src/winprob.py` trains an in-game win-probability model on the 551
 historical matches: multinomial logistic regression on goal difference,
 cumulative xG difference, red-card man advantage and time remaining,
-predicting P(home win / draw / away win). It is well calibrated (log loss
-0.79; predicted vs observed home-win rate within ~2 points across every
-decile) and saved as plain JSON so scoring needs only numpy.
+predicting P(home win / draw / away win). Out-of-sample on a match-grouped
+holdout it scores log loss 0.83, calibrated at the confident extremes but
+under-predicting home wins through the mid-range deciles; the coefficients are
+saved as plain JSON so scoring needs only numpy.
 
 `src/live_eval.py` drives it from FotMob's per-shot xG and event feed to
 draw a chess.com-style evaluation bar for each match: one line, up means
