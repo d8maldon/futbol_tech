@@ -20,12 +20,14 @@ import pandas as pd
 ROOT = os.path.join(os.path.dirname(__file__), "..", "data", "processed")
 OUT = os.path.join(os.path.dirname(__file__), "..", "wc2026")
 
-FEATURES = ["gd", "gd_clock", "xgd", "xgd_early", "mad", "mad_clock", "rem"]
+FEATURES = ["gd", "gd_clock", "xgd", "xgd_early", "mad", "mad_clock", "rem", "gd_rem"]
 
 
 def feature_row(gd, xgd, mad, minute):
     rem = max(90.0 - minute, 0.0) / 90.0
-    return [gd, gd / (rem + 0.1), xgd, xgd * rem, mad, mad * (1 - rem), rem]
+    # gd_clock amplifies a lead as time runs out; gd_rem is its complement -- a
+    # lead discounted by time still left. Both earn their place out-of-sample.
+    return [gd, gd / (rem + 0.1), xgd, xgd * rem, mad, mad * (1 - rem), rem, gd * rem]
 
 
 def softmax(z):

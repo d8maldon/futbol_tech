@@ -46,11 +46,20 @@ src/backtest_history.py, src/winprob.py
    The HA/K/decay/neutral-home searches used a val/test split (no tuning on the
    test fold), so their rejections are sound negatives, correctly not adopted.
 
+### Resolution of finding 2
+
+The user chose the feature pass. A goal-difference x time-remaining interaction
+(`gd_rem`), selected on the calib fold and confirmed on the held-out test fold
+(0.8207 -> 0.8187), was adopted into winprob.py; no other candidate feature
+beat baseline out-of-sample (the rest overfit). Finding 2 is RESOLVED, not
+deferred. Combined with the temperature scaling, the in-game model is now at
+OOS log loss ~0.819.
+
 ### Pre-commitment
 
-After fix 1 (applied + verified) and an explicit decision on finding 2 (the
-residual mid-range bias), prometheus signs off: the pre-match predictor is SOUND
-and the in-game model is calibrated. No further additions.
+Both conditions met -- fix 1 applied + verified, finding 2 resolved via `gd_rem`.
+prometheus SIGNS OFF: the pre-match predictor is SOUND and the in-game model is
+calibrated. No further additions.
 
 ### Cross-references
 

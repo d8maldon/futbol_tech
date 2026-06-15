@@ -1,14 +1,14 @@
 match_id,date,home,away,score,temp_c,humidity,swing_minute,swing_pts,narrative
-4667751,2026-06-11,Mexico,South Africa,2-0,25,48,11.5,45.0,Mexico seized control
-4667752,2026-06-12,South Korea,Czechia,2-1,22,67,82.5,70.0,South Korea seized control
+4667751,2026-06-11,Mexico,South Africa,2-0,25,48,11.5,31.4,Mexico seized control
+4667752,2026-06-12,South Korea,Czechia,2-1,22,67,69.5,72.4,"Czechia were on top, then let it slip"
 4667757,2026-06-12,Canada,Bosnia and Herzegovina,1-1,24,49,80.5,74.2,"Bosnia and Herzegovina were on top, then let it slip"
-4667771,2026-06-13,USA,Paraguay,4-1,19,85,9.5,42.7,USA seized control
-4667758,2026-06-13,Qatar,Switzerland,1-1,29,43,93.5,82.5,"Switzerland were on top, then let it slip"
-4667764,2026-06-13,Brazil,Morocco,1-1,30,34,23.0,-61.1,Morocco seized control
-4667765,2026-06-14,Haiti,Scotland,0-1,20,65,29.0,-59.2,Scotland seized control
-4667772,2026-06-14,Australia,Turkiye,2-0,21,49,29.5,46.7,Australia seized control
-4667777,2026-06-14,Germany,Curacao,7-1,29,78,8.5,47.6,Germany seized control
-4667778,2026-06-14,Ivory Coast,Ecuador,1-0,27,56,92.5,90.0,Ivory Coast seized control
-4667783,2026-06-14,Netherlands,Japan,2-2,28,66,90.5,-87.8,"Netherlands were on top, then let it slip"
-4667784,2026-06-15,Sweden,Tunisia,5-1,26,87,7.5,46.5,Sweden seized control
-4667798,2026-06-15,Spain,Cape Verde,0-0,27,52,41.0,14.6,
+4667771,2026-06-13,USA,Paraguay,4-1,19,85,31.0,30.7,USA seized control
+4667758,2026-06-13,Qatar,Switzerland,1-1,29,43,93.5,80.9,"Switzerland were on top, then let it slip"
+4667764,2026-06-13,Brazil,Morocco,1-1,30,34,23.5,-56.2,Morocco seized control
+4667765,2026-06-14,Haiti,Scotland,0-1,20,65,30.5,-58.3,Scotland seized control
+4667772,2026-06-14,Australia,Turkiye,2-0,21,49,29.5,44.7,Australia seized control
+4667777,2026-06-14,Germany,Curacao,7-1,29,78,40.5,44.5,Germany seized control
+4667778,2026-06-14,Ivory Coast,Ecuador,1-0,27,56,91.5,82.0,Ivory Coast seized control
+4667783,2026-06-14,Netherlands,Japan,2-2,28,66,90.5,-79.8,"Netherlands were on top, then let it slip"
+4667784,2026-06-15,Sweden,Tunisia,5-1,26,87,7.5,29.3,Sweden seized control
+4667798,2026-06-15,Spain,Cape Verde,0-0,27,52,41.0,15.2,Spain seized control
