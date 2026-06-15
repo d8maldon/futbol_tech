@@ -21,19 +21,19 @@ Detector firings per match, by tournament:
 
 | tournament              | firings/match | reading                    |
 |-------------------------|---------------|----------------------------|
-| ISL 2021/22 (India)     | 0.44          | breaks in most matches     |
-| Copa America 2024 (USA) | 0.31          | hot-venue matches          |
-| AFCON 2023 (Ivory Coast)| 0.31          | hot-venue matches          |
+| ISL 2021/22 (India)     | 0.43          | breaks in most matches     |
+| Copa America 2024 (USA) | 0.28          | hot-venue matches          |
+| AFCON 2023 (Ivory Coast)| 0.29          | hot-venue matches          |
 | WWC 2019 (France)       | 0.23          | heatwave weeks             |
 | Euro 2024               | 0.14          | ~ background               |
 | Euro 2020               | 0.12          | ~ background               |
-| WC 2018 (Russia)        | 0.11          | = background, exactly      |
+| WC 2018 (Russia)        | 0.09          | ~ background               |
 | WC 2022 (Qatar, AC)     | 0.11          | the measured noise floor   |
-| WWC 2023 (winter)       | 0.09          | ~ background               |
+| WWC 2023 (winter)       | 0.08          | ~ background               |
 
 The air-conditioned 2022 World Cup defines the false-positive floor: 0.11
 firings per match (VAR checks, slow restarts). Hot tournaments run 2-4x that,
-and only those four enter the break set: 89 breaks, estimated 69% genuine.
+and only those four enter the break set: 86 breaks, estimated 68% genuine.
 
 Validation against ground truth: the WWC 2019 quarter-final (Italy 0-2
 Netherlands, 34C in Valenciennes) was reported at the time as requiring
@@ -105,35 +105,35 @@ python src/live_eval.py 4667757    # a single FotMob match id
 
 ## The trap: breaks live at minute 75
 
-The naive analysis is seductive. Pool everything and you get: 45% of breaks
+The naive analysis is seductive. Pool everything and you get: 43% of breaks
 are followed by a substitution or formation change within 5 minutes, against
-26% in no-break control windows. Substitutions during the pause run 3x the
-pooled control rate. It looks like coaches treat the pause as a free timeout.
+26% in no-break control windows. Substitutions during the pause run almost 3x
+the pooled control rate. It looks like coaches treat the pause as a free timeout.
 
 It is mostly composition. Second-half breaks sit at minute 75, which is
-prime substitution time with or without a break, and the break set is 63%
+prime substitution time with or without a break, and the break set is 62%
 second halves while the control set is 61% first halves. Comparing like
 halves with like:
 
-- sub or shape change within 5 min: 45% vs 38% (control standardized to the
-  break period mix), 95% CI on the gap -3 to +16 points. Not significant.
-- second half only, match-clustered: 70% vs 57%, CI -3 to +28 points.
+- sub or shape change within 5 min: 43% vs 38% (control standardized to the
+  break period mix), 95% CI on the gap -5 to +15 points. Not significant.
+- second half only, match-clustered: 68% vs 57%, CI -4 to +27 points.
 - first half only: 3% vs 7%. Nothing.
 
 ## What survives
 
-- Substitutions migrate into the pause itself. 0.55 subs are made during the
-  average break against 0.28 expected (period-standardized), roughly 2x, CI
-  +0.07 to +0.49. Coaches use the dead time to make the changes they were
+- Substitutions migrate into the pause itself. 0.53 subs are made during the
+  average break against 0.29 expected (period-standardized), roughly 1.8x, CI
+  +0.04 to +0.46. Coaches use the dead time to make the changes they were
   about to make anyway. (Read with care: control halves cannot contain long
   sub stoppages by construction, and some detected breaks are themselves
   substitution stoppages, so part of this gap is selection.)
 - Momentum does not detectably move. The team dominating threat (xT + xG)
   before the break stays dominant after it as often as in control windows:
-  flips 33% vs 39%, CI -18 to +5 points; mean swing in threat share is
-  indistinguishable. With 69% purity this is low-powered against subtle
+  flips 34% vs 36%, CI -14 to +10 points; mean swing in threat share is
+  indistinguishable. With 68% purity this is low-powered against subtle
   effects, so it is a no-detectable-effect result, not proof of absence.
-- Formation changes during the pause: no detectable excess (CI -11 to +3
+- Formation changes during the pause: no detectable excess (CI -11 to +2
   points).
 
 ## Predicting the matches and the champion
@@ -222,8 +222,8 @@ replay, and the tactical snapshot.
 
 ## Limitations
 
-- The detector is statistical. Purity is ~69% in the break set (75% ISL,
-  ~65% AFCON and Copa, ~53% WWC 2019), measured against the WC 2022 floor.
+- The detector is statistical. Purity is ~68% in the break set (75% ISL,
+  ~62% AFCON and Copa, ~53% WWC 2019), measured against the WC 2022 floor.
   Contamination shrinks true differences toward zero: conservative for the
   positive findings, but it also weakens the momentum null.
 - Control halves are quieter than break halves by construction (no long
