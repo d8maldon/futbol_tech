@@ -61,7 +61,7 @@ def main():
     ogg = {k: v for k, v in og.groupby("match_id")}
     cg = {k: v for k, v in cards.groupby("match_id")}
 
-    X, y = [], []
+    X, y, groups = [], [], []
     for mid, m in matches.iterrows():
         s = sg.get(mid)
         if s is None:
@@ -90,29 +90,45 @@ def main():
                     int(((c.team_id == hid) & (c.m <= minute)).sum())
             X.append(feature_row(hg - ag, hxg - axg, mad, minute))
             y.append(outcome)
+            groups.append(mid)
 
     X = np.array(X)
     y = np.array(y)
+    groups = np.array(groups)
     print("training samples:", X.shape, "outcome mix:",
           {k: int((y == k).sum()) for k in ("H", "D", "A")})
 
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import log_loss
-    clf = LogisticRegression(max_iter=5000, C=1.0)
-    clf.fit(X, y)
-    p = clf.predict_proba(X)
-    print("log loss:", round(log_loss(y, p), 4))
+    # Match-grouped held-out split: every match contributes 90 autocorrelated
+    # rows sharing one label, so scoring on the same rows it was fit on is
+    # optimistic. Hold out a fifth of the MATCHES and report log loss there --
+    # honest out-of-sample, no match in both train and test.
+    uniq = np.unique(groups)
+    rng = np.random.default_rng(0)
+    rng.shuffle(uniq)
+    test_ids = set(uniq[:max(len(uniq) // 5, 1)])
+    te = np.array([g in test_ids for g in groups])
+    tr = ~te
+    oos = LogisticRegression(max_iter=5000, C=1.0).fit(X[tr], y[tr])
+    p_te = oos.predict_proba(X[te])
+    print("OUT-OF-SAMPLE log loss ({} held-out matches): {:.4f}".format(
+        len(test_ids), log_loss(y[te], p_te, labels=oos.classes_)))
 
-    # calibration: predicted home-win probability decile vs observed rate
-    ph = p[:, list(clf.classes_).index("H")]
-    obs = (y == "H").astype(float)
-    print("calibration (P(home win) decile -> predicted / observed):")
+    # calibration on the HELD-OUT matches: predicted home-win decile vs observed
+    ph = p_te[:, list(oos.classes_).index("H")]
+    obs = (y[te] == "H").astype(float)
+    print("calibration on held-out (P(home win) decile -> predicted / observed):")
     qs = np.quantile(ph, np.linspace(0, 1, 11))
     for i in range(10):
         sel = (ph >= qs[i]) & (ph <= qs[i + 1])
         if sel.sum():
             print("  {:.2f}-{:.2f}: {:.3f} / {:.3f}  (n={})".format(
                 qs[i], qs[i + 1], ph[sel].mean(), obs[sel].mean(), int(sel.sum())))
+
+    # refit on ALL data for the saved production model
+    clf = LogisticRegression(max_iter=5000, C=1.0)
+    clf.fit(X, y)
 
     model = {
         "classes": list(clf.classes_),
