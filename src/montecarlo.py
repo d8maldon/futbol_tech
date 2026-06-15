@@ -33,7 +33,7 @@ import pandas as pd
 
 from fixtures import load_fixtures, played
 from ratings import (BASE, HOME_ADV, HOSTS_2026, K_WORLD_CUP, PROVISIONAL,
-                     build_normalizer, elo_update, expected, seed_ratings)
+                     build_normalizer, elo_update, expected, seed_history)
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 OUT = os.path.join(ROOT, "wc2026")
@@ -46,9 +46,9 @@ BG = "#0d1117"; INK = "#e6edf3"; MUT = "#7d8590"
 
 
 def current_ratings():
-    """seed from history, then self-adjust on every finished WC2026 game"""
-    matches = pd.read_csv(os.path.join(ROOT, "data", "processed", "matches.csv"))
-    seed, _ = seed_ratings(matches)
+    """seed from the full international history, then self-adjust on every
+    finished WC2026 game"""
+    seed, _ = seed_history()
     norm = build_normalizer(seed)
     df = load_fixtures(norm=norm)
     rt = dict(seed)

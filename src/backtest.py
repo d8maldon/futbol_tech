@@ -28,7 +28,7 @@ import pandas as pd
 from fixtures import load_fixtures, played
 from ratings import (BASE, HOME_ADV, HOSTS_2026, K_WORLD_CUP, PROVISIONAL,
                      build_normalizer, elo_update, fit_kappa,
-                     load_prematch_model, prematch_proba, seed_ratings)
+                     load_prematch_model, prematch_proba, seed_history)
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 OUT = os.path.join(ROOT, "wc2026")
@@ -203,13 +203,12 @@ def render(rows, metrics, n, out):
 
 def main():
     os.makedirs(FIG, exist_ok=True)
-    matches = pd.read_csv(os.path.join(ROOT, "data", "processed", "matches.csv"))
-    seed, pairs = seed_ratings(matches)
+    seed, pairs = seed_history()
     norm = build_normalizer(seed)
     model = load_prematch_model()
 
-    # base rate (climatology) from the pre-2026 men's outcomes
-    out = np.array([o for _, o in pairs])
+    # base rate (climatology) from the pre-2026 international outcomes
+    out = np.array([o for _dr, o, _y in pairs])
     base_rate = {k: float((out == k).mean()) for k in ORDER}
 
     df = load_fixtures(norm=norm)

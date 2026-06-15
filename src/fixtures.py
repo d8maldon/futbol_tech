@@ -20,7 +20,7 @@ import pandas as pd
 import requests
 import urllib3
 
-from ratings import build_normalizer, seed_ratings
+from ratings import build_normalizer, seed_history
 
 urllib3.disable_warnings()
 
@@ -107,8 +107,7 @@ def played(df):
 
 
 def main():
-    matches = pd.read_csv(os.path.join(ROOT, "data", "processed", "matches.csv"))
-    ratings, _ = seed_ratings(matches)
+    ratings, _ = seed_history()
     norm = build_normalizer(ratings)
     df = load_fixtures(force=True, norm=norm)
     print("total matches:", len(df))

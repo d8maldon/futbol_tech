@@ -141,10 +141,13 @@ halves with like:
 ## Predicting the matches and the champion
 
 `src/ratings.py` rates every nation with self-adjusting World Football Elo,
-seeded by replaying the 314 men's national-team matches in the data and updated
-one step per finished game. Elo emits only a win expectancy, so the rating gap
-is mapped to P(win / draw / away) with a Davidson draw model that auto-upgrades
-to a multinomial logit, reusing the same softmax + JSON contract as `winprob`.
+seeded by replaying the full international record (~49k matches, 1872-2026, the
+martj42 dataset) up to kickoff and updated one step per finished game -- the
+very engine validated out-of-sample below, so every nation, debutants included,
+carries an earned rating instead of a flat prior. Elo emits only a win
+expectancy, so the rating gap is mapped to P(win / draw / away) with a Davidson
+draw model that auto-upgrades to a multinomial logit, reusing the same softmax +
+JSON contract as `winprob`.
 
 `src/montecarlo.py` simulates the rest of the tournament 10,000 times: the
 remaining group games (Poisson scorelines drawn from the rating gap), the
@@ -168,7 +171,7 @@ deliberately-labelled-weak live danger model (AUC ~0.55).
 
 ### Is it any good? Out-of-sample validation
 
-Nine World Cup games is far too few to claim anything, so `src/backtest_history.py`
+A dozen World Cup games is far too few to claim anything, so `src/backtest_history.py`
 replays ~49,000 men's internationals (1872-2026, the public martj42 dataset)
 through the same Elo engine, fits the draw model on 2005-2020 and scores the
 **held-out 2021-2026** (5,691 matches it never saw):

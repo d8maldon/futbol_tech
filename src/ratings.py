@@ -14,10 +14,11 @@ probabilities. Two routes, both fit ONCE on pre-2026 men's matches and frozen
   - a 3-class multinomial logit on the rating gap, reusing winprob.py's exact
     softmax + JSON contract so the live scorer needs no sklearn.
 
-Seed pool = the 314 men's national-team matches already on disk (WC 2018/2022,
-Euro 2020/2024, Copa America 2024, AFCON 2023). Women's and club competitions
-are excluded (separate populations). Teams with no history get a provisional
-prior and self-correct as they play.
+The live predictor seeds from the FULL international record (~49k matches, the
+martj42 dataset) via seed_history() -- the same engine validated out-of-sample
+at 0.86 log loss -- so every nation, debutants included, carries an earned
+rating. (seed_ratings() below is the older narrow seed of ~314 elite-tournament
+matches; kept for reference, it mis-rated low-data teams like debutants.)
 
     python src/ratings.py        # seed, fit the draw models, rank, predict
 """
@@ -133,6 +134,63 @@ def seed_ratings(matches):
     return ratings, pairs
 
 
+# ----------------------------------------------------- broad-history seed ----
+# The seed pool above is only ~314 elite-tournament matches, so debutants get a
+# flat provisional and even established sides can be mis-rated off one bad finals
+# (Scotland landed dead last). The broad seed below replays the FULL martj42
+# international record -- the SAME engine validated out-of-sample at 0.86 log
+# loss -- so the tournament predictor IS the validated model and every nation
+# carries an earned rating. (A recency half-life was tested and rejected: it
+# degrades out-of-sample; see model_search.py.)
+INTL_RESULTS = os.path.join(os.path.dirname(__file__), "..", "data", "raw", "intl_results.csv")
+WC2026_START = "2026-06-11"
+# martj42 spellings that differ from our canonical keys (verified: only these 4)
+MARTJ42_TO_KEY = {
+    "Bosnia and Herzegovina": "Bosnia-Herzegovina",
+    "Cape Verde": "Cape Verde Islands",
+    "DR Congo": "Congo DR",
+    "Ivory Coast": "Côte d'Ivoire",
+}
+
+
+def _k_international(tournament):
+    """Elo K by match importance across ALL internationals, not just finals."""
+    t = str(tournament).lower()
+    if "world cup" in t and "qualif" not in t:
+        return K_WORLD_CUP            # 60
+    if any(x in t for x in ("euro", "copa", "african cup", "asian cup", "gold cup")) \
+            and "qualif" not in t:
+        return K_CONTINENTAL          # 50
+    if "qualif" in t:
+        return 40
+    if "friendly" in t:
+        return 20
+    return 30
+
+
+def seed_history(cutoff=WC2026_START):
+    """Replay every international up to the World Cup -> (ratings, pairs).
+
+    ratings are keyed by our canonical names; pairs is the leak-free list of
+    (pre_match_dr, outcome, year) used to fit the draw model on a mature window.
+    """
+    df = pd.read_csv(INTL_RESULTS).dropna(subset=["home_score", "away_score"])
+    df = df[df.date < cutoff].sort_values("date", kind="mergesort")
+    df["year"] = df.date.str.slice(0, 4).astype(int)
+    elo, pairs = {}, []
+    for r in df.itertuples():
+        rh = elo.get(r.home_team, BASE)
+        ra = elo.get(r.away_team, BASE)
+        ha = 0.0 if r.neutral else HOME_ADV
+        hs, as_ = int(r.home_score), int(r.away_score)
+        dr = (rh + ha) - ra
+        pairs.append((dr, "H" if hs > as_ else ("A" if as_ > hs else "D"), r.year))
+        elo[r.home_team], elo[r.away_team] = elo_update(
+            rh, ra, hs, as_, _k_international(r.tournament), ha)
+    ratings = {MARTJ42_TO_KEY.get(k, k): round(v, 1) for k, v in elo.items()}
+    return ratings, pairs
+
+
 # ------------------------------------------------------- draw-aware 3-way map
 def davidson_proba(dr, kappa):
     """closed-form Elo->P(H/D/A); kappa controls draw mass (no fitting)"""
@@ -195,15 +253,18 @@ def prematch_proba(dr, model=None, kappa=1.0):
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    matches = pd.read_csv(os.path.join(ROOT, "matches.csv"))
-    ratings, pairs = seed_ratings(matches)
+    ratings, pairs = seed_history()
     norm = build_normalizer(ratings)
-    print("seed pool: {} matches -> {} teams".format(len(pairs), len(ratings)))
+    print("broad seed: {} internationals -> {} teams".format(len(pairs), len(ratings)))
 
-    kappa, kll = fit_kappa(pairs)
-    model, mll = fit_prematch_logit(pairs, len(pairs))
-    print("Davidson kappa = {} (log loss {});  logit log loss {}".format(
-        kappa, kll, mll))
+    # fit the draw models on a mature in-sample window (2005-2020) -- the exact
+    # protocol the out-of-sample 0.86 validation uses, so the live predictor is
+    # the validated model
+    train = [(dr, o) for dr, o, y in pairs if 2005 <= y <= 2020]
+    kappa, kll = fit_kappa(train)
+    model, mll = fit_prematch_logit(train, len(train))
+    print("draw model on {} matches (2005-2020): Davidson kappa {} (ll {}); logit ll {}".format(
+        len(train), kappa, kll, mll))
     with open(os.path.join(OUT, "prematch_model.json"), "w") as f:
         json.dump(model, f, indent=2)
 
@@ -231,7 +292,7 @@ def main():
         json.dump({"ratings": {k: round(v, 1) for k, v in ratings.items()},
                    "meta": {"as_of": as_of, "n_seed_matches": len(pairs),
                             "n_wc_applied": applied, "kappa": kappa,
-                            "pool": "men", "base": BASE}}, f, indent=2)
+                            "pool": "all-internationals", "base": BASE}}, f, indent=2)
 
     rank = sorted(ratings.items(), key=lambda kv: -kv[1])
     print("\ntop 20 by rating:")
