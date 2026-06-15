@@ -155,16 +155,20 @@ def render(rows, metrics, n, out):
             x0 += seg
         ax.text(0.89, y, "pick {}".format(pick), color=INK, fontsize=9,
                 va="center", fontfamily="Bahnschrift")
-        ax.text(0.97, y, "OK" if ok else "X", color=CH if ok else CW,
-                fontsize=11, va="center", fontweight="bold",
-                fontfamily="Bahnschrift")
+        # a drawn game is not a "miss" -- a single argmax pick can never be a draw
+        if r["outcome"] == "D" and not ok:
+            mark, mc, fs = "draw", MUT, 9
+        else:
+            mark, mc, fs = ("OK", CH, 11) if ok else ("X", CW, 11)
+        ax.text(0.97, y, mark, color=mc, fontsize=fs, va="center",
+                fontweight="bold", fontfamily="Bahnschrift")
     ax.set_xlim(0, 1); ax.set_ylim(-0.7, len(rows) - 0.3)
     ax.axis("off")
     ax.set_title("Did it call the games already played?  Leakage-free walk-forward, n={}".format(n),
                  color=INK, loc="left", pad=14, fontsize=15,
                  fontfamily="Bahnschrift", fontweight="bold")
     ax.text(0, len(rows) - 0.45,
-            "each prediction used ONLY results before kickoff   |   bar = P(home / draw / away)   |   blue home  grey draw  orange away",
+            "each prediction used ONLY results before kickoff   |   bar = P(home / draw / away)   |   RPS / log loss (below) are the proper scores, not pick-accuracy",
             color=MUT, fontsize=8.5, fontfamily="Bahnschrift")
 
     # metrics panel
@@ -217,11 +221,20 @@ def main():
     print("leakage guard passed: every prediction used only pre-kickoff results")
     metrics = score(rows, "model", base_rate)
     n = len(rows)
-    print("\nmean RPS  (lower better):")
+    print("\nproper scores (lower better) -- RPS and log loss are the honest metrics:")
     for k in ("model", "frozen", "climatology", "uniform"):
         rp, ll, acc = metrics[k]
-        print("  {:12s} RPS {:.3f}  logloss {:.3f}  acc {:.0%}".format(
+        print("  {:12s} RPS {:.3f}  logloss {:.3f}  pick-acc {:.0%}".format(
             k, rp, ll, acc))
+    # pick-accuracy is a poor metric here: a single argmax pick can never be a
+    # draw, so drawn games are unwinnable by construction. Report the decisive
+    # subset separately.
+    dec = [r for r in rows if r["outcome"] != "D"]
+    ndraw = n - len(dec)
+    dec_hits = sum(1 for r in dec if max(r["p_live"], key=r["p_live"].get) == r["outcome"])
+    print("  decisive games: {}/{} called right ({:.0%})  |  {} of {} ended level "
+          "(a single pick cannot call a draw)".format(
+              dec_hits, len(dec), dec_hits / max(len(dec), 1), ndraw, n))
 
     # write per-match predictions for played + all known-team upcoming fixtures
     csv_rows = []
@@ -232,7 +245,8 @@ def main():
                          "p_D": round(p["D"], 3), "p_A": round(p["A"], 3),
                          "pick": max(p, key=p.get), "score": r["score"],
                          "outcome": r["outcome"],
-                         "correct": int(max(p, key=p.get) == r["outcome"])})
+                         "correct": int(max(p, key=p.get) == r["outcome"]),
+                         "rps": round(rps(p, r["outcome"]), 3)})
     upcoming = df[(~df.finished) & (df.home != "") & (df.away != "")
                   & df.home_id.notna() & df.away_id.notna()]
     for r in upcoming.itertuples():
