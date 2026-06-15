@@ -143,6 +143,7 @@ def seed_ratings(matches):
 # carries an earned rating. (A recency half-life was tested and rejected: it
 # degrades out-of-sample; see model_search.py.)
 INTL_RESULTS = os.path.join(os.path.dirname(__file__), "..", "data", "raw", "intl_results.csv")
+MARTJ42_URL = "https://raw.githubusercontent.com/martj42/international_results/master/results.csv"
 WC2026_START = "2026-06-11"
 # martj42 spellings that differ from our canonical keys (verified: only these 4)
 MARTJ42_TO_KEY = {
@@ -174,6 +175,15 @@ def seed_history(cutoff=WC2026_START):
     ratings are keyed by our canonical names; pairs is the leak-free list of
     (pre_match_dr, outcome, year) used to fit the draw model on a mature window.
     """
+    if not (os.path.exists(INTL_RESULTS) and os.path.getsize(INTL_RESULTS) > 0):
+        import requests
+        import urllib3
+        urllib3.disable_warnings()
+        os.makedirs(os.path.dirname(INTL_RESULTS), exist_ok=True)
+        resp = requests.get(MARTJ42_URL, verify=False, timeout=60)
+        resp.raise_for_status()
+        with open(INTL_RESULTS, "w", encoding="utf-8") as fh:
+            fh.write(resp.text)
     df = pd.read_csv(INTL_RESULTS).dropna(subset=["home_score", "away_score"])
     df = df[df.date < cutoff].sort_values("date", kind="mergesort")
     df["year"] = df.date.str.slice(0, 4).astype(int)
