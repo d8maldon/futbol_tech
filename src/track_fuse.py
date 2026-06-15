@@ -39,6 +39,35 @@ BG = "#0d1117"; INK = "#e6edf3"; MUT = "#7d8590"
 MEAS = "#5e9bff"; GHOST = "#ff7a1a"; BALLC = "#ffd23f"
 
 
+def appearance(img, box):
+    """L1-normalised HSV torso colour histogram -- a cheap kit-colour ReID cue"""
+    import cv2
+    x1, y1, x2, y2 = [int(v) for v in box]
+    w, h = max(x2 - x1, 1), max(y2 - y1, 1)
+    crop = img[max(y1 + int(0.15 * h), 0):y1 + int(0.55 * h),
+               max(x1 + int(0.2 * w), 0):x1 + int(0.8 * w)]
+    if crop.size == 0:
+        return None
+    hsv = cv2.cvtColor(crop, cv2.COLOR_BGR2HSV)
+    hist = cv2.calcHist([hsv], [0, 1], None, [8, 8], [0, 180, 0, 256]).flatten()
+    s = hist.sum()
+    return hist / s if s > 0 else None
+
+
+def appdist(a, b):
+    return 0.5 if a is None or b is None else 1.0 - float(np.minimum(a, b).sum())
+
+
+def ema_app(a, b, alpha=0.3):
+    if b is None:
+        return a
+    if a is None:
+        return b
+    c = (1 - alpha) * a + alpha * b
+    s = c.sum()
+    return c / s if s > 0 else c
+
+
 class Kalman:
     """constant-velocity KF in metres: state [x, y, vx, vy]"""
 
@@ -73,11 +102,12 @@ def main():
     args = ap.parse_args()
 
     from scipy.optimize import linear_sum_assignment
-    from ultralytics import YOLO
-    model = YOLO(DEFAULT_WEIGHTS)
+    import cv2
+    from broadcast_track import detect
     dt = 1.0 / args.fps
     GATE = 4.0           # m: max association distance (player moves <1m/frame)
     MAX_MISS = 6         # frames a track may be Kalman-ghosted before dropping
+    APP_W = 3.0          # weight (in metres) of kit-colour distance in matching
 
     frames = sorted(glob.glob(os.path.join(args.frames_dir, "*.png")))
     tracks = []          # {"kf":, "pts":[(x,y,measured,radius)], "miss":, "alive":}
@@ -93,37 +123,35 @@ def main():
         Hs = H if Hs is None else A * H + (1 - A) * Hs
         H = Hs / Hs[2, 2]                          # use the smoothed homography
         used += 1
-        res = model(fp, conf=args.conf, verbose=False)[0]
-        det = res.boxes
-        cls = det.cls.cpu().numpy().astype(int)
-        xyxy = det.xyxy.cpu().numpy()
-        # warp every detected player's foot point to world; keep on-pitch ones
-        dets = []
-        for c, b in zip(cls, xyxy):
-            if c != PERSON:
-                continue
-            w = hg.warp(H, [[(b[0] + b[2]) / 2, b[3]]])[0]
+        # soccer detector (player/gk, no crowd) + foot points; warp on-pitch ones
+        players, ball, _ = detect(fp, conf=args.conf)
+        img = cv2.imread(fp)
+        dets, dets_app = [], []
+        for fx, fy, box, _ in players:
+            w = hg.warp(H, [[fx, fy]])[0]
             if 0 <= w[0] <= PL and 0 <= w[1] <= PW:
-                dets.append(w)
+                dets.append(w); dets_app.append(appearance(img, box))
         dets = np.array(dets) if dets else np.empty((0, 2))
-        ball_idx = np.where(cls == SPORTS_BALL)[0]
-        if len(ball_idx):
-            b = xyxy[ball_idx[0]]
-            ball_xy.append(hg.warp(H, [[(b[0] + b[2]) / 2, b[3]]])[0])
+        if ball is not None:
+            ball_xy.append(hg.warp(H, [[ball[0], ball[1]]])[0])
 
         alive = [t for t in tracks if t["alive"]]
         for t in alive:
             t["kf"].predict()
-        # associate dets to alive tracks by world distance (gated Hungarian)
+        # associate by world distance + kit-colour (ReID): keeps identities stable
+        # through crossings/occlusion so a player isn't re-spawned as a new track
         matched_d, matched_t = set(), set()
         if alive and len(dets):
             pred = np.array([[t["kf"].x[0], t["kf"].x[1]] for t in alive])
-            cost = np.linalg.norm(pred[:, None, :] - dets[None, :, :], axis=2)
-            cost[cost > GATE] = 1e6
+            wd = np.linalg.norm(pred[:, None, :] - dets[None, :, :], axis=2)
+            app = np.array([[appdist(t["app"], da) for da in dets_app] for t in alive])
+            cost = wd + APP_W * app
+            cost[wd > GATE] = 1e6
             for a, b in zip(*linear_sum_assignment(cost)):
                 if cost[a, b] < 1e6:
                     alive[a]["kf"].update(dets[b])
                     alive[a]["miss"] = 0
+                    alive[a]["app"] = ema_app(alive[a]["app"], dets_app[b])
                     alive[a]["pts"].append((alive[a]["kf"].x[0], alive[a]["kf"].x[1],
                                             True, alive[a]["kf"].radius()))
                     matched_d.add(b); matched_t.add(a)
@@ -142,6 +170,7 @@ def main():
             if j not in matched_d:
                 kf = Kalman(dets[j], dt)
                 tracks.append({"kf": kf, "miss": 0, "alive": True,
+                               "app": dets_app[j],
                                "pts": [(dets[j][0], dets[j][1], True, kf.radius())]})
 
     def n_meas(t):
