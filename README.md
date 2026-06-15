@@ -63,10 +63,11 @@ and regenerates the tracker plus one river per match:
 
 ![tracker](figures/wc2026_tracker.png)
 
-Through day 2: three matches, six official breaks, one in each half of
-every match including an 8pm kickoff, all called at minutes 23-25 of the
-half, a few minutes earlier than the historical norm, and zero substitutions
-made during the pauses so far. The opener:
+Through day 5: twelve matches, twenty-four official breaks, one in each half
+of every match including 8pm kickoffs, all called around minutes 23-25 of the
+half (median 23', a few minutes earlier than the historical norm) and running
+about three minutes each. Six substitutions have been made during the pauses
+so far, all of them in two matches. The opener:
 
 ![opener](figures/wc2026_river_mexico_south_africa.png)
 
@@ -157,6 +158,14 @@ only pre-kickoff results); `src/goalscorer.py` gives anytime-goalscorer odds and
 `src/action_value.py` values every pass and carry by the Expected Threat it adds
 (the event-data analogue of NBA Expected Possession Value).
 
+The schedule and results behind all of this come from FIFA's calendar via
+`src/fixtures.py` -- all 104 matches, played and upcoming, the data layer the
+simulator and the backtest share -- and `src/squads.py` pulls the 48 confirmed
+squads from FotMob so the goalscorer and action-value boards list only players
+actually at the tournament. `src/goal_hazard.py` adds the historical
+goal-hazard curve (when goals arrive, stoppage-time spikes and all) alongside a
+deliberately-labelled-weak live danger model (AUC ~0.55).
+
 ### Is it any good? Out-of-sample validation
 
 Nine World Cup games is far too few to claim anything, so `src/backtest_history.py`
@@ -193,12 +202,24 @@ clips, around the GS-HOTA 5 m tolerance: heatmap-grade positioning of the
 visible players.
 
 What did **not** work, tested and reported as such: higher input resolution does
-not help (the detector downscales internally, and a larger inference size mostly
-finds crowd and degrades the homography); jersey-number reading is hopeless at
-broadcast resolution; off-screen players cannot be reconstructed from a single
-frame. `src/board.py` fuses everything into one dossier per match -- the
+not help (`src/cv_compare.py` runs 480p against 1080p through the identical
+pipeline -- the detector downscales internally, and a larger inference size
+mostly finds crowd and degrades the homography); jersey-number reading is
+hopeless at broadcast resolution; and off-screen players cannot be reconstructed
+from a single frame -- `src/fuse_eval.py` hides the players farthest from the
+ball and tries to put them back from a 4-3-3 formation prior, and the per-player
+error in metres is large:
+
+![off-screen reconstruction](figures/wc2026_fuse_eval.png)
+
+`src/board.py` fuses everything into one dossier per match -- the
 win-probability eval, pre-match odds versus the result, the goal/card/sub
-replay, and the tactical snapshot.
+replay (`src/replay.py`), and the tactical snapshot (`src/tactical.py`:
+kit-colour team assignment and convex-hull shape on the warped frame).
+`src/pitch_control.py` and `src/minimap_track.py` are earlier exploratory
+demos -- a pitch-control surface from a 360 freeze frame, and a feasibility
+check for tracking off a broadcast minimap -- kept for reference, not part of
+the live pipeline.
 
 ## Method
 
@@ -245,16 +266,30 @@ python src/analyze.py
 python src/make_figures.py
 
 # prediction
+python src/fixtures.py           # pull the full FIFA schedule (played + upcoming)
+python src/squads.py             # confirmed 48 squads, to filter the player boards
 python src/winprob.py            # in-game win-probability model
 python src/ratings.py            # self-adjusting Elo + draw model
 python src/montecarlo.py         # champion probabilities
+python src/backtest.py           # leakage-free backtest of the games played
 python src/backtest_history.py   # out-of-sample validation on 49k internationals
+python src/goalscorer.py         # anytime-goalscorer odds
+python src/action_value.py       # Expected-Threat action values + possession ticker
+python src/goal_hazard.py        # goal-hazard timing curve + live danger model
 
-# live + vision (computer-vision deps; weights pulled from HuggingFace)
+# live (FIFA / ESPN / FotMob feeds)
+python src/wc2026.py             # the hidden-timeout break tracker + momentum rivers
 python src/live_eval.py          # win-probability eval per match
-python src/board.py              # per-match analysis board
-python src/homography.py --frame <frame>   # broadcast -> top-down
+python src/replay.py             # event-by-event match report per match
+python src/board.py              # per-match analysis dossier
+
+# vision (computer-vision deps; weights pulled from HuggingFace)
+python src/homography.py --frame <frame>     # broadcast -> top-down
+python src/track_fuse.py --frames-dir <dir>  # temporal fusion tracker
 python src/validate_topdown.py   # metres-accuracy vs SoccerNet GSR
+python src/cv_compare.py         # 480p vs 1080p ablation (resolution is not the bottleneck)
+python src/fuse_eval.py          # off-screen reconstruction benchmark (a negative result)
+python src/tactical.py --frame <frame>       # kit-colour team shapes on one frame
 python src/live_screen.py --camera 1 --show  # live, phone-as-webcam at a TV
 ```
 

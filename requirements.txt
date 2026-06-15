@@ -3,6 +3,7 @@ numpy
 pandas
 matplotlib
 requests
+urllib3
 scikit-learn
 scipy
 
@@ -10,6 +11,7 @@ scipy
 opencv-python
 ultralytics
 torch
+Pillow
 mss
 remotezip
 supervision
