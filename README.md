@@ -81,9 +81,10 @@ python src/wc2026.py
 historical matches: multinomial logistic regression on goal difference,
 cumulative xG difference, red-card man advantage and time remaining,
 predicting P(home win / draw / away win). Out-of-sample on a match-grouped
-holdout it scores log loss 0.83, calibrated at the confident extremes but
-under-predicting home wins through the mid-range deciles; the coefficients are
-saved as plain JSON so scoring needs only numpy.
+holdout it scores log loss 0.82 after a temperature-scaling recalibration (the
+raw logit is over-confident, T=1.25), with mild residual under-prediction of
+home wins in the mid-range; the coefficients and temperature are saved as plain
+JSON so scoring needs only numpy.
 
 `src/live_eval.py` drives it from FotMob's per-shot xG and event feed to
 draw a chess.com-style evaluation bar for each match: one line, up means

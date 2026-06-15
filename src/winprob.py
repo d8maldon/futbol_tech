@@ -37,6 +37,7 @@ def softmax(z):
 def predict(model, gd, xgd, mad, minute):
     x = np.array(feature_row(gd, xgd, mad, minute))
     z = np.array(model["coef"]) @ x + np.array(model["intercept"])
+    z = z / model.get("temperature", 1.0)   # calibration: tame over-confidence
     p = softmax(z)
     return dict(zip(model["classes"], p))
 
@@ -100,33 +101,49 @@ def main():
 
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import log_loss
-    # Match-grouped held-out split: every match contributes 90 autocorrelated
-    # rows sharing one label, so scoring on the same rows it was fit on is
-    # optimistic. Hold out a fifth of the MATCHES and report log loss there --
-    # honest out-of-sample, no match in both train and test.
+    # Match-grouped split: each match is 90 autocorrelated rows sharing one
+    # label, so we hold out whole MATCHES. Three-way (fit / calibrate / test):
+    # the raw logistic model is over-confident, so we fit ONE temperature on the
+    # calib fold and report log loss on a separate test fold -- no leakage, and
+    # the temperature is chosen without ever seeing the test fold.
     uniq = np.unique(groups)
     rng = np.random.default_rng(0)
     rng.shuffle(uniq)
-    test_ids = set(uniq[:max(len(uniq) // 5, 1)])
+    k = max(len(uniq) // 5, 1)
+    test_ids, calib_ids = set(uniq[:k]), set(uniq[k:2 * k])
     te = np.array([g in test_ids for g in groups])
-    tr = ~te
-    oos = LogisticRegression(max_iter=5000, C=1.0).fit(X[tr], y[tr])
-    p_te = oos.predict_proba(X[te])
-    print("OUT-OF-SAMPLE log loss ({} held-out matches): {:.4f}".format(
-        len(test_ids), log_loss(y[te], p_te, labels=oos.classes_)))
+    ca = np.array([g in calib_ids for g in groups])
+    tr = ~(te | ca)
+    base = LogisticRegression(max_iter=5000, C=1.0).fit(X[tr], y[tr])
+    cls = list(base.classes_)
 
-    # calibration on the HELD-OUT matches: predicted home-win decile vs observed
-    ph = p_te[:, list(oos.classes_).index("H")]
+    def logits(mask):
+        return X[mask] @ base.coef_.T + base.intercept_
+
+    # temperature: 1-D search for the T minimising calib log loss (T>1 means the
+    # raw model was over-confident; dividing the logits by T softens it)
+    zc = logits(ca)
+    grid = np.linspace(0.5, 3.0, 51)
+    T = float(min(grid, key=lambda t: log_loss(y[ca], softmax(zc / t), labels=cls)))
+    zt = logits(te)
+    raw = log_loss(y[te], softmax(zt), labels=cls)
+    cal = log_loss(y[te], softmax(zt / T), labels=cls)
+    print("OUT-OF-SAMPLE log loss ({} test matches): raw {:.4f} -> temperature-scaled {:.4f}  (T={:.2f})".format(
+        len(test_ids), raw, cal, T))
+
+    # P(home-win) calibration on the held-out test, after temperature scaling
+    pte = softmax(zt / T)
+    ph = pte[:, cls.index("H")]
     obs = (y[te] == "H").astype(float)
-    print("calibration on held-out (P(home win) decile -> predicted / observed):")
     qs = np.quantile(ph, np.linspace(0, 1, 11))
+    print("calibration after scaling (P(home win) decile -> predicted / observed):")
     for i in range(10):
         sel = (ph >= qs[i]) & (ph <= qs[i + 1])
         if sel.sum():
             print("  {:.2f}-{:.2f}: {:.3f} / {:.3f}  (n={})".format(
                 qs[i], qs[i + 1], ph[sel].mean(), obs[sel].mean(), int(sel.sum())))
 
-    # refit on ALL data for the saved production model
+    # production model: refit on ALL data, keep the calibrated temperature
     clf = LogisticRegression(max_iter=5000, C=1.0)
     clf.fit(X, y)
 
@@ -134,6 +151,7 @@ def main():
         "classes": list(clf.classes_),
         "coef": clf.coef_.tolist(),
         "intercept": clf.intercept_.tolist(),
+        "temperature": round(T, 3),
         "features": FEATURES,
         "n_matches": int(matches.shape[0]),
         "n_samples": int(X.shape[0]),
