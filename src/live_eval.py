@@ -71,6 +71,10 @@ def fetch(url, key):
         return json.load(f)
 
 
+def _is_wc(name):
+    return "World Cup" in (name or "") and "Women" not in (name or "")
+
+
 def list_matches():
     """finished WC 2026 men's matches, FotMob ids, oldest first"""
     out = []
@@ -78,15 +82,25 @@ def list_matches():
     day = START
     while day <= today:
         key = "fm_day_{:%Y%m%d}".format(day)
-        # only the live (today) file should ever skip the cache
-        if day == today:
-            p = os.path.join(CACHE, key + ".json")
-            if os.path.exists(p):
-                os.remove(p)
+        p = os.path.join(CACHE, key + ".json")
+        # refetch today's file, AND any past-day cache that was taken before its
+        # late matches finished -- otherwise those games are stuck "not finished"
+        # forever (the cache was written mid-day and never refreshed).
+        stale = day == today
+        if not stale and os.path.exists(p):
+            try:
+                with open(p, encoding="utf-8") as f:
+                    cached = json.load(f)
+                stale = any(not (m.get("status") or {}).get("finished")
+                            for lg in cached.get("leagues", []) if _is_wc(lg.get("name"))
+                            for m in lg.get("matches", []))
+            except (ValueError, OSError):
+                stale = True
+        if stale and os.path.exists(p):
+            os.remove(p)
         d = fetch("{}/data/matches?date={:%Y%m%d}".format(FOTMOB, day), key)
         for lg in d.get("leagues", []):
-            name = lg.get("name", "")
-            if "World Cup" in name and "Women" not in name:
+            if _is_wc(lg.get("name", "")):
                 for m in lg.get("matches", []):
                     if (m.get("status") or {}).get("finished"):
                         out.append(m["id"])
@@ -143,7 +157,7 @@ def build_timeline(match_id):
         "match_id": match_id,
         "home": home["name"], "away": away["name"], "hid": hid, "aid": aid,
         "score": "{}-{}".format(hscore, ascore),
-        "date": (g.get("matchTimeUTC") or "")[:16],
+        "date": (g.get("matchTimeUTCDate") or "")[:16],  # ISO; matchTimeUTC is a human string
         "temp_c": weather.get("temperature"), "humidity": weather.get("relativeHumidity"),
         "chances": sorted(chances, key=lambda c: c["m"]),
         "goals": sorted(goals, key=lambda c: c["m"]),
@@ -274,7 +288,7 @@ def render(model, tl):
     ax.text(0, 1.04, "how the match favoured each side, minute by minute, from chance quality and the scoreboard",
             transform=ax.transAxes, color=MUT, va="bottom", **font(8.5))
     fig.text(0.5, 0.008,
-             "model trained on 551 historical matches (log loss 0.79) | live data: FotMob | github.com/d8maldon/hidden-timeout",
+             "model trained on 551 historical matches (OOS log loss 0.83) | live data: FotMob | github.com/d8maldon/hidden-timeout",
              ha="center", color=MUT, **font(7.5))
 
     slug = "".join(ch if ch.isalnum() else "_" for ch in

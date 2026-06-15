@@ -96,7 +96,7 @@ def build_replay(match_id):
     out.sort(key=lambda x: x["m"])
     return {"home": home["name"], "away": away["name"],
             "score": "{}-{}".format(hs, asc),
-            "date": (g.get("matchTimeUTC") or "")[:10], "events": out}
+            "date": (g.get("matchTimeUTCDate") or "")[:10], "events": out}
 
 
 def render(tl, out_path):

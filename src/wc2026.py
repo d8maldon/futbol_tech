@@ -256,9 +256,15 @@ def main():
         rivers.append((row, breaks, threat, goals))
 
     import csv
-    for name, data, fields in (
-            ("matches", rows, list(rows[0].keys())),
-            ("breaks", brows, list(brows[0].keys()))):
+    # explicit fieldnames so an empty result set still writes a valid header
+    # instead of IndexError-ing on rows[0] (e.g. a day with no finished matches)
+    match_fields = ["fifa_id", "espn_id", "date", "home", "away", "score",
+                    "venue", "local_hour", "n_breaks", "n_subs",
+                    "subs_during_breaks", "subs_5min_after"]
+    break_fields = ["fifa_id", "match", "date", "venue", "local_hour",
+                    "minute", "duration_sec"]
+    for name, data, fields in (("matches", rows, match_fields),
+                               ("breaks", brows, break_fields)):
         with open(os.path.join(OUT, name + ".csv"), "w", newline="", encoding="utf-8") as f:
             w = csv.DictWriter(f, fieldnames=fields)
             w.writeheader()
