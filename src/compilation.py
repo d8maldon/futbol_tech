@@ -91,7 +91,7 @@ def main():
 
     fig.text(0.02, 0.92, "WORLD CUP 2026: THE GOALS THAT SHOULDN'T HAVE GONE IN, AND THE CHANCES THAT SHOULD HAVE",
              color=INK, fontfamily="Bahnschrift", fontsize=16, fontweight="bold")
-    fig.text(0.02, 0.885, "{} goals and {} shots rated by xG. Mbappe's 91' winner today vs Senegal: xG 0.04 -- a goal against the odds.".format(
+    fig.text(0.02, 0.885, "{} goals and {} shots rated by xG -- the most improbable finishes of the tournament against the biggest chances that went begging.".format(
         len(goals), len(shots)), color=MUT, fontfamily="Bahnschrift", fontsize=10)
     fig.text(0.5, 0.02, "xG from FotMob shot data | lower xG goal = more improbable finish | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, fontfamily="Bahnschrift", fontsize=8)
