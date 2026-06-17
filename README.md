@@ -229,6 +229,17 @@ demos -- a pitch-control surface from a 360 freeze frame, and a feasibility
 check for tracking off a broadcast minimap -- kept for reference, not part of
 the live pipeline.
 
+`src/visual_ai.py` runs that whole stack over an entire broadcast or highlights
+reel and renders the "visual-AI" view in three synced panels: the broadcast with
+team-coloured boxes, the top-down convex-hull team shapes, and a live
+pitch-control probability map (which team owns each patch of grass), recomputed
+every frame. It is built for a highlights montage -- scene cuts reset the tracker
+and graphics/replays/close-ups blank honestly as "no pitch view" -- and uses
+EMA-smoothed homography plus Kalman persistence so the top-down does not flicker.
+The whole Argentina 3-0 Algeria extended highlights run is in
+`figures/wc2026_argentina_clip.mp4` (a two-stage CV-then-render pipeline; the full
+13-minute version renders locally).
+
 ## Method
 
 1. `download.py`, `extract.py`: 551 matches, 10 tournaments, ~1.9M events

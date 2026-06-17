@@ -39,8 +39,13 @@ caches). The scripts re-fetch what they need on first run (all HTTPS uses
    `wc2026_tactical_clip.mp4/.gif` (continuous broadcast→top-down tracking),
    `wc2026_argentina_montage.mp4/.gif` (cut-aware tracking on YouTube highlights
    — Argentina 3-0 Algeria kickoff passage, blanks the pre-match graphics),
+   `wc2026_argentina_clip.mp4` + the local-only `wc2026_argentina_full.mp4` (the
+   flagship "visual-AI" view over the WHOLE Argentina 3-0 Algeria extended
+   highlights: three synced panels — broadcast+team boxes / top-down convex-hull
+   team shapes / live pitch-control probability map — with EMA-homography + Kalman
+   anti-flicker; ~half the reel blanks honestly as graphics/replays/close-ups),
    `_tactical_snapshot.png`. Files: `broadcast_track, homography, track_fuse,
-   validate_topdown, tactical, tactical_clip, montage_clip, cv_compare,
+   validate_topdown, tactical, tactical_clip, montage_clip, visual_ai, cv_compare,
    pitch_control, minimap_track, fuse_eval, live_eval, replay, board, wc2026,
    chances, highlights, compilation`.
 
