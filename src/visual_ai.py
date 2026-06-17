@@ -47,6 +47,7 @@ from matplotlib.colors import LinearSegmentedColormap
 from scipy.optimize import linear_sum_assignment
 
 import homography as hg
+import match_data as MD
 from broadcast_track import detect
 from tactical import hull, jersey_color
 from track_fuse import Kalman, appearance, appdist, ema_app
@@ -55,16 +56,21 @@ ROOT = os.path.join(os.path.dirname(__file__), "..")
 CLIPS = os.path.join(ROOT, "data", "clips")
 FIG = os.path.join(ROOT, "figures")
 PL, PW = 120.0, 80.0
-BG = "#0d1117"; INK = "#e6edf3"; MUT = "#7d8590"; BALLC = "#ffd23f"
+BG = "#0d1117"; INK = "#e6edf3"; MUT = "#7d8590"; BALLC = "#ffd23f"; GREEN = "#3fb950"
+ARG_C, ALG_C = (0.30, 0.78, 1.0), (1.0, 0.45, 0.20)   # cyan / orange, matches palette
+MATCH_ID = "4667812"                                  # Argentina 3-0 Algeria
 
 # tracking / smoothing knobs
 GATE = 4.0          # m, max association distance per frame
 APP_W = 3.0         # weight of kit-colour distance in association
 MAX_MISS = 6        # frames a track is Kalman-ghosted before it dies
 A_HOMO = 0.35       # homography EMA factor within a shot
-CUT = 28.0          # mean abs gray-diff (64x36) above which it is a scene cut
-N_CONF = 4          # real detections needed before a track is drawn
-AGE_CONF = 4        # frames alive before a track is drawn (kills blips)
+CUT = 55.0          # mean abs gray-diff (64x36) above which it is a HARD cut
+                    # (measured: median diff ~16, pans ~40, real cuts >55)
+HOLD = 10           # frames to keep ESTIMATING last positions through a no-pitch
+                    # gap before the overlay finally goes to "no pitch view"
+N_CONF = 3          # real detections needed before a track is drawn
+AGE_CONF = 3        # frames alive before a track is drawn (kills blips)
 TAU = 6.0           # pitch-control falloff (m); larger = softer ownership
 SEE = 26.0          # only colour control within this many m of a tracked player
 
@@ -125,22 +131,31 @@ def cv_pass(frames, cen):
         return int(np.argmin([np.linalg.norm(c - cen[k]) for k in range(2)])) if c is not None else -1
 
     tracks, states, prev_small, Hs = [], [], None, None
+    last_cur, last_ball, gap = [], None, 99             # for estimation through gaps
     for n, fp in enumerate(frames):
         img = cv2.imread(fp)
         small = cv2.cvtColor(cv2.resize(img, (64, 36)), cv2.COLOR_BGR2GRAY).astype(float)
         cut = prev_small is not None and float(np.abs(small - prev_small).mean()) > CUT
         prev_small = small
         if cut:
-            tracks, Hs = [], None                       # scene change: hard reset
+            tracks, Hs, last_cur, gap = [], None, [], 99  # hard cut: reset identity,
+            # do NOT hold positions across a real cut and do NOT blank for it
         H, _, _ = hg.keypoint_homography(fp)
         players, ball, (h, w) = detect(fp)
         boxes = [[float(v) for v in b] + [team_of(img, b)] for _, _, b, _ in players]
-        note = "scene change" if cut else ("" if H is not None else "no pitch view")
         if H is None:
-            tracks, Hs = [], None
-            states.append({"fp": fp, "boxes": boxes, "tracks": [], "ball": None,
-                           "wh": (w, h), "note": note or "no pitch view"})
+            gap += 1
+            if gap <= HOLD and last_cur:                # ESTIMATE: hold last shape,
+                dim = max(0.25, 1.0 - gap / (HOLD + 1.0))   # fading as the gap grows
+                est = [[x, y, tm, a * dim, False] for x, y, tm, a, _ in last_cur]
+                states.append({"fp": fp, "boxes": boxes, "tracks": est, "ball": last_ball,
+                               "wh": (w, h), "note": "estimated", "est": True})
+            else:                                       # genuinely no pitch in view
+                tracks, Hs = [], None
+                states.append({"fp": fp, "boxes": boxes, "tracks": [], "ball": None,
+                               "wh": (w, h), "note": "no pitch view"})
             continue
+        gap = 0
         Hs = H if Hs is None else A_HOMO * H + (1 - A_HOMO) * Hs
         H = Hs / Hs[2, 2]                               # smoothed homography
         dets, dapp, dteam = [], [], []
@@ -184,8 +199,10 @@ def cv_pass(frames, cen):
             cur.append([float(t["kf"].x[0]), float(t["kf"].x[1]), int(tm), alpha, bool(measured)])
         bw = hg.warp(H, [[ball[0], ball[1]]])[0] if ball is not None else None
         ball_xy = [float(bw[0]), float(bw[1])] if bw is not None and 0 <= bw[0] <= PL and 0 <= bw[1] <= PW else None
+        if cur:                                         # remember for gap estimation
+            last_cur, last_ball = cur, ball_xy
         states.append({"fp": fp, "boxes": boxes, "tracks": cur, "ball": ball_xy,
-                       "wh": (w, h), "note": note})
+                       "wh": (w, h), "note": ""})
     return states
 
 
@@ -223,81 +240,158 @@ def display_palette(team_rgb):
     return disp
 
 
-def render(states, team_rgb, out, fps, title):
+def render(states, team_rgb, m, out, fps, title):
     import cv2
-    cmap = LinearSegmentedColormap.from_list(
-        "ctrl", [team_rgb[1], (0.93, 0.93, 0.93), team_rgb[0]])
-    fig = plt.figure(figsize=(12.8, 8.4), dpi=86)
-    fig.patch.set_facecolor(BG)
-    gs = fig.add_gridspec(2, 2, height_ratios=[1.0, 0.82], width_ratios=[1.05, 1.0],
-                          left=0.015, right=0.985, top=0.9, bottom=0.055, hspace=0.16, wspace=0.06)
-    axb = fig.add_subplot(gs[0, 0])      # broadcast
-    axp = fig.add_subplot(gs[0, 1])      # top-down shapes
-    axc = fig.add_subplot(gs[1, :])      # pitch-control map
+    cmap = LinearSegmentedColormap.from_list("ctrl", [team_rgb[1], (0.93, 0.93, 0.93), team_rgb[0]])
     F = {"fontfamily": "Bahnschrift"}
+    mins = m["wp_mins"]
+    # playhead: advance match-minute only on frames that SHOW the pitch, so the
+    # dashboard reveals the match story progressively (approx; no clock OCR here)
+    pitch = np.array([s["note"] != "no pitch view" for s in states], float)
+    cum = np.cumsum(pitch)
+    frame_min = np.clip(90.0 * cum / max(cum[-1], 1.0), 0, 98)
+
+    fig = plt.figure(figsize=(16, 9), dpi=84); fig.patch.set_facecolor(BG)
+    axw = fig.add_axes([0.02, 0.875, 0.96, 0.052])    # win-prob bar
+    axb = fig.add_axes([0.02, 0.40, 0.455, 0.45])     # broadcast
+    axp = fig.add_axes([0.49, 0.40, 0.265, 0.45])     # top-down shapes
+    axc = fig.add_axes([0.775, 0.40, 0.205, 0.45])    # pitch control
+    axg = fig.add_axes([0.05, 0.055, 0.32, 0.27])     # xG race
+    axe = fig.add_axes([0.41, 0.055, 0.23, 0.295])    # event ticker
+    axr = fig.add_axes([0.665, 0.055, 0.315, 0.295])  # ratings + prediction
+    allax = [axw, axb, axp, axc, axg, axe, axr]
     ema = {"c": None}
 
     def draw(i):
-        d = states[i]
-        for ax in (axb, axp, axc):
+        d = states[i]; blank = d["note"] == "no pitch view"; est = d.get("est", False)
+        ti = int(round(float(frame_min[i])))
+        for ax in allax:
             ax.clear()
-        # ---- broadcast + team-coloured boxes ----
-        img = cv2.cvtColor(cv2.imread(d["fp"]), cv2.COLOR_BGR2RGB)
-        axb.imshow(img)
-        for box in d["boxes"]:
-            x1, y1, x2, y2, tm = box
+
+        # ===== WIN-PROBABILITY BAR =====
+        axw.set_xlim(0, 1); axw.set_ylim(0, 1); axw.axis("off")
+        ph, pdr, pa = float(m["wp_home"][ti]), float(m["wp_draw"][ti]), float(m["wp_away"][ti])
+        axw.add_patch(plt.Rectangle((0, 0), ph, 1, color=ARG_C))
+        axw.add_patch(plt.Rectangle((ph, 0), pdr, 1, color=(0.42, 0.42, 0.46)))
+        axw.add_patch(plt.Rectangle((ph + pdr, 0), pa, 1, color=ALG_C))
+        axw.text(0.008, 0.5, "ARGENTINA  {:.0%}".format(ph), va="center", ha="left",
+                 color=BG, fontsize=12, fontweight="bold", **F)
+        axw.text(0.992, 0.5, "{:.0%}  ALGERIA".format(pa), va="center", ha="right",
+                 color="white", fontsize=12, fontweight="bold", **F)
+        if pdr > 0.05:
+            axw.text(ph + pdr / 2, 0.5, "draw {:.0%}".format(pdr), va="center", ha="center",
+                     color="white", fontsize=8, **F)
+        axw.set_title("LIVE WIN PROBABILITY  ·  our temperature-calibrated model (OOS log-loss 0.82)",
+                      color=MUT, loc="center", fontsize=9, **F)
+
+        # ===== BROADCAST =====
+        axb.imshow(cv2.cvtColor(cv2.imread(d["fp"]), cv2.COLOR_BGR2RGB))
+        for x1, y1, x2, y2, tm in d["boxes"]:
             col = team_rgb[int(tm)] if tm >= 0 else (0.6, 0.6, 0.6)
             axb.add_patch(plt.Rectangle((x1, y1), x2 - x1, y2 - y1, fill=False, edgecolor=col, lw=1.4))
         w, h = d["wh"]; axb.set_xlim(0, w); axb.set_ylim(h, 0); axb.axis("off")
         axb.set_title("broadcast — players detected & teamed", color=INK, loc="left",
                       fontsize=10.5, fontweight="bold", **F)
-        # ---- top-down team shapes ----
-        hg.draw_pitch(axp)
-        tr = d["tracks"]
+
+        # ===== TOP-DOWN TEAM SHAPES =====
+        hg.draw_pitch(axp); tr = d["tracks"]
         for c in range(2):
-            pts = np.array([[t[0], t[1]] for t in tr if t[2] == c])
-            if len(pts):
-                for t in [t for t in tr if t[2] == c]:
-                    axp.scatter([t[0]], [t[1]], s=120, facecolor=team_rgb[c], edgecolors=BG,
-                                lw=1.1, alpha=t[3], zorder=5)
-                hull(axp, pts, team_rgb[c])
+            grp = [t for t in tr if t[2] == c]
+            for t in grp:
+                axp.scatter([t[0]], [t[1]], s=110, facecolor=team_rgb[c], edgecolors=BG,
+                            lw=1.1, alpha=t[3], zorder=5)
+            if len(grp) >= 3:
+                hull(axp, np.array([[t[0], t[1]] for t in grp]), team_rgb[c])
         if d["ball"] is not None:
-            axp.scatter([d["ball"][0]], [d["ball"][1]], s=66, c=BALLC, edgecolors=BG, lw=1, zorder=7)
-        if d["note"]:
-            axp.text(60, 40, d["note"].upper(), ha="center", va="center",
-                     color="#ffb347", fontsize=15, fontweight="bold", **F)
-            ema["c"] = None
+            axp.scatter([d["ball"][0]], [d["ball"][1]], s=60, c=BALLC, edgecolors=BG, lw=1, zorder=7)
+        if blank:
+            axp.text(60, 40, "NO PITCH VIEW", ha="center", va="center", color="#ffb347",
+                     fontsize=14, fontweight="bold", **F)
+        elif est:
+            axp.text(60, 3, "ESTIMATED — holding last shape", ha="center", va="bottom",
+                     color="#ffb347", fontsize=8, **F)
         axp.set_title("top-down — visible team shapes", color=INK, loc="left",
                       fontsize=10.5, fontweight="bold", **F)
-        # ---- live pitch-control probability map ----
-        hg.draw_pitch(axc); axc.set_title(
-            "live pitch control — probability each team owns the space",
-            color=INK, loc="left", fontsize=10.5, fontweight="bold", **F)
-        surf = None if d["note"] else control_surface(tr)
+
+        # ===== PITCH CONTROL =====
+        hg.draw_pitch(axc)
+        surf = None if blank else control_surface(tr)
         if surf is None:
             ema["c"] = None
-            if d["note"]:
-                axc.text(60, 40, d["note"].upper(), ha="center", va="center",
-                         color="#ffb347", fontsize=15, fontweight="bold", **F)
+            if blank:
+                axc.text(60, 40, "NO PITCH VIEW", ha="center", va="center", color="#ffb347",
+                         fontsize=12, fontweight="bold", **F)
         else:
             ctrl, vis = surf
             ema["c"] = ctrl if ema["c"] is None else 0.5 * ctrl + 0.5 * ema["c"]
-            shown = np.ma.masked_where(~vis, ema["c"])
-            axc.imshow(shown, origin="lower", extent=[0, PL, 0, PW], cmap=cmap,
-                       vmin=0, vmax=1, alpha=0.62, aspect="equal", zorder=1.5)
+            axc.imshow(np.ma.masked_where(~vis, ema["c"]), origin="lower", extent=[0, PL, 0, PW],
+                       cmap=cmap, vmin=0, vmax=1, alpha=0.62, aspect="equal", zorder=1.5)
             for t in tr:
                 tc = team_rgb[int(t[2])] if t[2] >= 0 else (0.6, 0.6, 0.6)
-                axc.scatter([t[0]], [t[1]], s=34, facecolor=tc,
-                            edgecolors=BG, lw=0.6, alpha=0.9 * t[3], zorder=4)
-            if d["ball"] is not None:
-                axc.scatter([d["ball"][0]], [d["ball"][1]], s=46, c=BALLC, edgecolors=BG, lw=0.8, zorder=6)
-        mm, ss = divmod(int(i / fps), 60)
-        fig.suptitle("{}   ·   {:d}:{:02d}".format(title, mm, ss), color=INK, x=0.5,
-                     fontsize=13, fontweight="bold", **F)
+                axc.scatter([t[0]], [t[1]], s=28, facecolor=tc, edgecolors=BG, lw=0.5,
+                            alpha=0.9 * t[3], zorder=4)
+        axc.set_title("live pitch control", color=INK, loc="left", fontsize=10.5, fontweight="bold", **F)
+
+        # ===== xG RACE =====
+        axg.set_facecolor("#0f1620")
+        axg.plot(mins[:ti + 1], m["xg_h"][:ti + 1], color=ARG_C, lw=2.0)
+        axg.plot(mins[:ti + 1], m["xg_a"][:ti + 1], color=ALG_C, lw=2.0)
+        for s in m["shots"]:
+            if s["min"] <= ti:
+                cy = (m["xg_h"] if s["is_home"] else m["xg_a"])[min(s["min"], 98)]
+                axg.scatter([s["min"]], [cy], s=80 if s["goal"] else 20,
+                            marker="*" if s["goal"] else "o",
+                            color=ARG_C if s["is_home"] else ALG_C, edgecolors=BG, lw=0.5, zorder=5)
+        axg.axvline(ti, color=MUT, lw=0.8, ls=(0, (3, 3)))
+        axg.set_xlim(0, 95); axg.set_ylim(0, max(1.5, float(m["xg_h"][-1]) + 0.25))
+        axg.set_title("xG race  ·  ARG {:.2f}   ALG {:.2f}".format(float(m["xg_h"][ti]), float(m["xg_a"][ti])),
+                      color=INK, loc="left", fontsize=10, fontweight="bold", **F)
+        axg.tick_params(colors=MUT, labelsize=7)
+        for sp in axg.spines.values():
+            sp.set_color("#30363d")
+
+        # ===== EVENT TICKER =====
+        axe.set_xlim(0, 1); axe.set_ylim(0, 1); axe.axis("off")
+        axe.text(0, 0.98, "MATCH EVENTS", color=INK, fontsize=10, fontweight="bold", va="top", **F)
+        past = [e for e in m["events"] if e["min"] <= ti][-7:]
+        for k, e in enumerate(reversed(past)):
+            y = 0.85 - k * 0.118
+            tag = {"Goal": "GOAL", "Card": "CARD", "Substitution": "SUB"}.get(e["type"], e["type"])
+            col = ARG_C if e["is_home"] else ALG_C
+            latest = e is past[-1]
+            sc = "  {}-{}".format(*e["score"]) if e["type"] == "Goal" and e.get("score") else ""
+            axe.text(0.0, y, "{}'".format(e["min"]), color=MUT, fontsize=9, va="center", **F)
+            axe.text(0.13, y, "{} {}{}".format(tag, e["player"], sc),
+                     color=col if latest else INK, fontsize=9.5 if latest else 8.5,
+                     fontweight="bold" if latest else "normal", va="center", **F)
+
+        # ===== RATINGS + PREDICTION =====
+        axr.set_xlim(0, 1); axr.set_ylim(0, 1); axr.axis("off")
+        pm = m["pre_match"]
+        axr.text(0, 0.98, "PRE-MATCH CALL  ·  our Elo model", color=INK, fontsize=10, fontweight="bold", va="top", **F)
+        axr.text(0, 0.89, "ARG {:.0%}    draw {:.0%}    ALG {:.0%}".format(pm["p_h"], pm["p_d"], pm["p_a"]),
+                 color=MUT, fontsize=9, va="top", **F)
+        axr.text(0, 0.80, "our call: ARGENTINA  ·  final {}-{}  (correct)".format(m["final_h"], m["final_a"]),
+                 color=GREEN, fontsize=9.5, fontweight="bold", va="top", **F)
+        axr.text(0, 0.66, "TOP PLAYER RATINGS  ·  FotMob", color=INK, fontsize=10, fontweight="bold", va="top", **F)
+        for k, r in enumerate(m["ratings"][:5]):
+            y = 0.555 - k * 0.107; col = ARG_C if r["is_home"] else ALG_C
+            axr.add_patch(plt.Rectangle((0.46, y - 0.03), 0.52 * r["rating"] / 10.0, 0.052,
+                          color=col, alpha=0.45))
+            axr.text(0.0, y, (r["name"][:18] + ("  POTM" if r["potm"] else "")),
+                     color=(1.0, 0.84, 0.2) if r["potm"] else col, fontsize=9, va="center", **F)
+            axr.text(0.985, y, "{:.2f}".format(r["rating"]), color=INK, fontsize=9.5,
+                     ha="right", va="center", fontweight="bold", **F)
+
+        # ===== HEADER =====
+        sch, sca = int(m["sc_h"][ti]), int(m["sc_a"][ti])
+        fig.suptitle("{} {}-{} {}    ·    visual-AI dashboard    ·    ~{}'".format(
+            m["home"], sch, sca, m["away"], ti), color=INK, x=0.5, y=0.978,
+            fontsize=15, fontweight="bold", **F)
 
     a = manim.FuncAnimation(fig, draw, frames=len(states), interval=1000 / fps)
-    a.save(out, writer=manim.FFMpegWriter(fps=fps, bitrate=2600,
-           extra_args=["-pix_fmt", "yuv420p"]))
+    a.save(out, writer=manim.FFMpegWriter(fps=fps, codec="libx264",
+           extra_args=["-crf", "24", "-pix_fmt", "yuv420p", "-preset", "veryfast"]))
     plt.close(fig)
 
 
@@ -341,15 +435,19 @@ def main():
             return
 
     team_rgb = display_palette(team_rgb)
+    m = MD.load(MATCH_ID)
+    print("match data: {} {}-{} {} | pre-match P(H) {:.2f} | POTM {}".format(
+        m["home"], m["final_h"], m["final_a"], m["away"], m["pre_match"]["p_h"],
+        m["ratings"][0]["name"] if m["ratings"] else "?"))
     if args.range:
         a, b = (int(v) for v in args.range.split(","))
         out = os.path.join(FIG, "wc2026_{}_test{}_{}.mp4".format(args.name, a, b))
         print("rendering test range [{}:{}] -> {}".format(a, b, out))
-        render(states[a:b], team_rgb, out, args.fps, title)
+        render(states[a:b], team_rgb, m, out, args.fps, title)
     else:
         out = os.path.join(FIG, "wc2026_{}.mp4".format(args.name))
         print("rendering", len(states), "frames ->", out)
-        render(states, team_rgb, out, args.fps, title)
+        render(states, team_rgb, m, out, args.fps, title)
     print("wrote", out)
 
 

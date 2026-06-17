@@ -230,15 +230,22 @@ check for tracking off a broadcast minimap -- kept for reference, not part of
 the live pipeline.
 
 `src/visual_ai.py` runs that whole stack over an entire broadcast or highlights
-reel and renders the "visual-AI" view in three synced panels: the broadcast with
-team-coloured boxes, the top-down convex-hull team shapes, and a live
-pitch-control probability map (which team owns each patch of grass), recomputed
-every frame. It is built for a highlights montage -- scene cuts reset the tracker
-and graphics/replays/close-ups blank honestly as "no pitch view" -- and uses
-EMA-smoothed homography plus Kalman persistence so the top-down does not flicker.
-The whole Argentina 3-0 Algeria extended highlights run is in
-`figures/wc2026_argentina_clip.mp4` (a two-stage CV-then-render pipeline; the full
-13-minute version renders locally).
+reel and renders a full **visual-AI dashboard**. The tracking row is the broadcast
+with team-coloured boxes, the top-down convex-hull team shapes, and a live
+pitch-control probability map; EMA-smoothed homography plus Kalman persistence and
+confirmed-tracks-only keep it from flickering, and short no-pitch gaps hold the
+last shape ("estimated") rather than going dark. Underneath sits an always-on data
+row built by `src/match_data.py` from the real FotMob feed and our own model, so
+the dashboard stays live even on close-ups where there is no pitch to track: a live
+win-probability eval bar (our temperature-calibrated model), an xG race with shot
+markers, an event ticker, our pre-match Elo call against the actual result, and the
+FotMob player ratings. A match-minute playhead advances on the frames that show the
+pitch, so the match story unfolds as the clip plays. The whole Argentina 3-0
+Algeria extended highlights run is in `figures/wc2026_argentina_clip.mp4` (a
+two-stage CV-then-render pipeline; the full 13-minute dashboard renders locally).
+Honest scope: there is no public WC2026 tracking telemetry, so positions come only
+from broadcast CV (visible players, heatmap-grade) and the data panels are the
+event/model "telemetry" we do have.
 
 ## Method
 

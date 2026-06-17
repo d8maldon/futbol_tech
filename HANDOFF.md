@@ -40,14 +40,20 @@ caches). The scripts re-fetch what they need on first run (all HTTPS uses
    `wc2026_argentina_montage.mp4/.gif` (cut-aware tracking on YouTube highlights
    — Argentina 3-0 Algeria kickoff passage, blanks the pre-match graphics),
    `wc2026_argentina_clip.mp4` + the local-only `wc2026_argentina_full.mp4` (the
-   flagship "visual-AI" view over the WHOLE Argentina 3-0 Algeria extended
-   highlights: three synced panels — broadcast+team boxes / top-down convex-hull
-   team shapes / live pitch-control probability map — with EMA-homography + Kalman
-   anti-flicker; ~half the reel blanks honestly as graphics/replays/close-ups),
+   flagship visual-AI DASHBOARD over the WHOLE Argentina 3-0 Algeria extended
+   highlights, 13:05). Seven synced panels: broadcast+team boxes / top-down
+   convex-hull team shapes / live pitch-control map (tracking row) + an always-on
+   data row driven by `src/match_data.py` (FotMob + our model) so it never goes
+   dark even on close-ups: live win-probability eval bar, xG race with shot
+   markers, event ticker, pre-match Elo call ("ARG 74% -> 3-0 correct"), and top
+   player ratings (Messi 9.66 POTM). A match-minute playhead advances on pitch
+   frames. Anti-flicker = EMA-homography + Kalman + confirmed-tracks-only; cut
+   threshold tuned (CUT=55, was over-firing) and short no-pitch gaps hold the last
+   shape ("ESTIMATED"); only genuine no-pitch (~32%) blanks the top-down.
    `_tactical_snapshot.png`. Files: `broadcast_track, homography, track_fuse,
-   validate_topdown, tactical, tactical_clip, montage_clip, visual_ai, cv_compare,
-   pitch_control, minimap_track, fuse_eval, live_eval, replay, board, wc2026,
-   chances, highlights, compilation`.
+   validate_topdown, tactical, tactical_clip, montage_clip, visual_ai, match_data,
+   cv_compare, pitch_control, minimap_track, fuse_eval, live_eval, replay, board,
+   wc2026, chances, highlights, compilation`.
 
 ## Current state (2026-06-16, 18 WC2026 matches played)
 - Predictor is the full-history validated engine. **Spain ~21% title favourite.**
