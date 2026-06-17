@@ -294,16 +294,21 @@ def render(states, team_rgb, m, out, fps, title):
                       fontsize=10.5, fontweight="bold", **F)
 
         # ===== TOP-DOWN TEAM SHAPES =====
+        # flip about the x-axis (y -> PW-y): the homography puts the camera-near
+        # touchline at y=PW (top); flipping it puts near at the bottom so the
+        # top-down matches what you see in the broadcast (also un-mirrors the map)
         hg.draw_pitch(axp); tr = d["tracks"]
+        trd = [[t[0], PW - t[1], t[2], t[3]] for t in tr]
+        bd = [d["ball"][0], PW - d["ball"][1]] if d["ball"] is not None else None
         for c in range(2):
-            grp = [t for t in tr if t[2] == c]
+            grp = [t for t in trd if t[2] == c]
             for t in grp:
                 axp.scatter([t[0]], [t[1]], s=110, facecolor=team_rgb[c], edgecolors=BG,
                             lw=1.1, alpha=t[3], zorder=5)
             if len(grp) >= 3:
                 hull(axp, np.array([[t[0], t[1]] for t in grp]), team_rgb[c])
-        if d["ball"] is not None:
-            axp.scatter([d["ball"][0]], [d["ball"][1]], s=60, c=BALLC, edgecolors=BG, lw=1, zorder=7)
+        if bd is not None:
+            axp.scatter([bd[0]], [bd[1]], s=60, c=BALLC, edgecolors=BG, lw=1, zorder=7)
         if blank:
             axp.text(60, 40, "NO PITCH VIEW", ha="center", va="center", color="#ffb347",
                      fontsize=14, fontweight="bold", **F)
@@ -313,9 +318,9 @@ def render(states, team_rgb, m, out, fps, title):
         axp.set_title("top-down — visible team shapes", color=INK, loc="left",
                       fontsize=10.5, fontweight="bold", **F)
 
-        # ===== PITCH CONTROL =====
+        # ===== PITCH CONTROL ===== (uses the same x-axis-flipped positions)
         hg.draw_pitch(axc)
-        surf = None if blank else control_surface(tr)
+        surf = None if blank else control_surface(trd)
         if surf is None:
             ema["c"] = None
             if blank:
@@ -326,7 +331,7 @@ def render(states, team_rgb, m, out, fps, title):
             ema["c"] = ctrl if ema["c"] is None else 0.5 * ctrl + 0.5 * ema["c"]
             axc.imshow(np.ma.masked_where(~vis, ema["c"]), origin="lower", extent=[0, PL, 0, PW],
                        cmap=cmap, vmin=0, vmax=1, alpha=0.62, aspect="equal", zorder=1.5)
-            for t in tr:
+            for t in trd:
                 tc = team_rgb[int(t[2])] if t[2] >= 0 else (0.6, 0.6, 0.6)
                 axc.scatter([t[0]], [t[1]], s=28, facecolor=tc, edgecolors=BG, lw=0.5,
                             alpha=0.9 * t[3], zorder=4)
