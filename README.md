@@ -287,6 +287,11 @@ python src/live_eval.py          # win-probability eval per match
 python src/replay.py             # event-by-event match report per match
 python src/board.py              # per-match analysis dossier
 
+# shareable demo visuals
+python src/highlights.py         # eval-bar board: the tournament's biggest win-prob swings
+python src/chances.py            # xG chance map: every shot rated by goal probability
+python src/tactical_clip.py      # animated broadcast -> top-down side-by-side (visible players)
+
 # vision (computer-vision deps; weights pulled from HuggingFace)
 python src/homography.py --frame <frame>     # broadcast -> top-down
 python src/track_fuse.py --frames-dir <dir>  # temporal fusion tracker
