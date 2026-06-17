@@ -37,10 +37,12 @@ caches). The scripts re-fetch what they need on first run (all HTTPS uses
    `wc2026_chances.png` (xG shot map), `wc2026_highlights.png` (eval-bar swings),
    `wc2026_compilation.png` (goals-against-the-odds vs chances missed),
    `wc2026_tactical_clip.mp4/.gif` (continuous broadcast→top-down tracking),
+   `wc2026_argentina_montage.mp4/.gif` (cut-aware tracking on YouTube highlights
+   — Argentina 3-0 Algeria kickoff passage, blanks the pre-match graphics),
    `_tactical_snapshot.png`. Files: `broadcast_track, homography, track_fuse,
-   validate_topdown, tactical, tactical_clip, cv_compare, pitch_control,
-   minimap_track, fuse_eval, live_eval, replay, board, wc2026, chances,
-   highlights, compilation`.
+   validate_topdown, tactical, tactical_clip, montage_clip, cv_compare,
+   pitch_control, minimap_track, fuse_eval, live_eval, replay, board, wc2026,
+   chances, highlights, compilation`.
 
 ## Current state (2026-06-16, 18 WC2026 matches played)
 - Predictor is the full-history validated engine. **Spain ~21% title favourite.**
