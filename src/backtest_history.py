@@ -173,7 +173,7 @@ def main():
                   color=INK, loc="left", **{"fontfamily": "Bahnschrift", "fontsize": 12, "fontweight": "bold"})
     fig.suptitle("Predictor validated out-of-sample on ~49k internationals (1872-2026)",
                  color=INK, x=0.5, fontsize=14, fontfamily="Bahnschrift", fontweight="bold")
-    fig.text(0.5, 0.01, "fit on 2005-2020, tested on held-out 2021-2026 | log-loss-first | no bookmaker odds -> not a market-beating claim | github.com/d8maldon/hidden-timeout",
+    fig.text(0.5, 0.01, "fit on 2005-2020, tested on held-out 2021-2026 | log-loss-first | no bookmaker odds -> not a market-beating claim | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, fontsize=7.5, fontfamily="Bahnschrift")
     fig.tight_layout(rect=[0, 0.02, 1, 0.95])
     fig.savefig(os.path.join(FIG, "wc2026_predictor_validation.png"), facecolor=BG)

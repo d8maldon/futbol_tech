@@ -152,7 +152,7 @@ def main():
                   color=INK, loc="left", fontsize=11, fontfamily="Bahnschrift", fontweight="bold")
     fig.suptitle("Tactical snapshot: teams + visible formation from one broadcast frame",
                  color=INK, x=0.5, fontsize=14, fontfamily="Bahnschrift", fontweight="bold")
-    fig.text(0.5, 0.01, "SNAPSHOT of visible players only | team clustering can misfire on similar kits/keepers | github.com/d8maldon/hidden-timeout",
+    fig.text(0.5, 0.01, "SNAPSHOT of visible players only | team clustering can misfire on similar kits/keepers | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, fontsize=8, fontfamily="Bahnschrift")
     fig.tight_layout(rect=[0, 0.02, 1, 0.95])
     out = os.path.join(FIG, "_tactical_snapshot.png")   # broadcast pixels -> local

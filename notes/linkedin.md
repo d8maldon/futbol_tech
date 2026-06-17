@@ -59,7 +59,7 @@ clean, significant, completely wrong composition artifact. If your
 treatment group lives at minute 75 and your control group lives at minute
 30, you are not measuring the treatment.
 
-Code, pipeline and figures: github.com/d8maldon/hidden-timeout
+Code, pipeline and figures: github.com/d8maldon/futbol_tech
 
 ---
 

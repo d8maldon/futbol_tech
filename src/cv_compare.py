@@ -118,7 +118,7 @@ def main():
     draw_row(axes[1, 0], axes[1, 1], hi, "1080p (highlight)")
     fig.suptitle("It's not the file resolution -- it's the inference size: 480p@640 vs 1080p@1920",
                  color=INK, x=0.5, fontsize=14, fontfamily="Bahnschrift", fontweight="bold")
-    fig.text(0.5, 0.01, "detect -> pitch-keypoint homography -> team assignment -> top-down | boxes via supervision annotators | github.com/d8maldon/hidden-timeout",
+    fig.text(0.5, 0.01, "detect -> pitch-keypoint homography -> team assignment -> top-down | boxes via supervision annotators | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, fontsize=8, fontfamily="Bahnschrift")
     fig.tight_layout(rect=[0, 0.02, 1, 0.96])
     out = os.path.join(FIG, "_cv_resolution_compare.png")   # broadcast pixels -> local

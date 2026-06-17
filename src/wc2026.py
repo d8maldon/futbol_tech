@@ -423,7 +423,7 @@ def render_tracker(rows, brows):
     axh.set_title("The fingerprint, accumulating live", color=INK, pad=10, loc="left", **font(12, True))
 
     fig.text(0.075, 0.008,
-             "breaks and sub timing: FIFA live timeline | chance data: ESPN commentary | github.com/d8maldon/hidden-timeout",
+             "breaks and sub timing: FIFA live timeline | chance data: ESPN commentary | github.com/d8maldon/futbol_tech",
              color=MUT, **font(8))
     fig.savefig(os.path.join(FIG, "wc2026_tracker.png"), facecolor=BG)
     plt.close(fig)

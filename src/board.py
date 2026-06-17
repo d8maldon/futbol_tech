@@ -183,7 +183,7 @@ def build_board(mid, eval_model, pre_model, seed, norm):
     if picked:
         panel_cv(fig.add_subplot(gs[3, :]), fig.add_subplot(gs[4, 0]), picked)
 
-    fig.text(0.5, 0.005, "analytics: StatsBomb/FotMob/ESPN (all matches) | CV: best-frame snapshot from edited 480p highlights, visible players only | github.com/d8maldon/hidden-timeout",
+    fig.text(0.5, 0.005, "analytics: StatsBomb/FotMob/ESPN (all matches) | CV: best-frame snapshot from edited 480p highlights, visible players only | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, **font(7.5))
     out = os.path.join(FIG, "board_{}.png".format(slug))
     fig.savefig(out, facecolor=BG, bbox_inches="tight")

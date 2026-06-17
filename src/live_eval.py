@@ -288,7 +288,7 @@ def render(model, tl):
     ax.text(0, 1.04, "how the match favoured each side, minute by minute, from chance quality and the scoreboard",
             transform=ax.transAxes, color=MUT, va="bottom", **font(8.5))
     fig.text(0.5, 0.008,
-             "model trained on 551 historical matches (OOS log loss 0.82, temperature-calibrated) | live data: FotMob | github.com/d8maldon/hidden-timeout",
+             "model trained on 551 historical matches (OOS log loss 0.82, temperature-calibrated) | live data: FotMob | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, **font(7.5))
 
     slug = "".join(ch if ch.isalnum() else "_" for ch in

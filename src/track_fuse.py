@@ -214,7 +214,7 @@ def main():
     ax.set_title("Tracking players over 6s of broadcast: world-space fusion (homography + Kalman)",
                  color=INK, loc="left", pad=30, fontfamily="Bahnschrift",
                  fontsize=13, fontweight="bold")
-    fig.text(0.5, 0.01, "trails on the top-down pitch | gaps filled by Kalman (uncertainty ring) | measured != inferred | 480p+yolov8n -> heavy gap-fill; needs higher-res + ReID | github.com/d8maldon/hidden-timeout",
+    fig.text(0.5, 0.01, "trails on the top-down pitch | gaps filled by Kalman (uncertainty ring) | measured != inferred | 480p+yolov8n -> heavy gap-fill; needs higher-res + ReID | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, fontsize=7.0, fontfamily="Bahnschrift")
     fig.tight_layout(rect=[0, 0.02, 1, 1])
     out = os.path.join(FIG, "wc2026_track_fuse.png")

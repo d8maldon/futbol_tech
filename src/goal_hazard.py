@@ -178,7 +178,7 @@ def render(labels, per_match, clf, base, tl, grid, p, gl, out):
              "honest caveat: recent chances lift this only ~23%->26% (AUC 0.55) -- most of the rise is the clock, not 'momentum'",
              color=MUT, **font(7.5))
     fig.text(0.5, 0.01,
-             "goal likelihood, not exact minute | danger from xG of the last 10 min, shots, clock, goals so far | trained on 551 matches | github.com/d8maldon/hidden-timeout",
+             "goal likelihood, not exact minute | danger from xG of the last 10 min, shots, clock, goals so far | trained on 551 matches | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, **font(7))
     fig.tight_layout(rect=[0, 0.02, 1, 1])
     fig.savefig(out, facecolor=BG)

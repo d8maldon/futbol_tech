@@ -222,7 +222,7 @@ def main():
     ax2.set_title("Per-clip error  ({} clips, mean {:.1f} m, 95% CI [{:.1f},{:.1f}])".format(
         len(per_clip), pooled.mean(), lo, hi), color=INK, loc="left", pad=10, fontfamily="Bahnschrift", fontsize=11, fontweight="bold")
     fig.suptitle("Broadcast -> top-down, validated in metres vs SoccerNet GSR ground truth", color=INK, x=0.5, fontsize=14, fontfamily="Bahnschrift", fontweight="bold")
-    fig.text(0.5, 0.01, "remotezip-sampled SN-GSR frames | within 5m {:.0%}, 10m {:.0%} | clean tactical broadcast (highlights are harder) | github.com/d8maldon/hidden-timeout".format((pooled <= 5).mean(), (pooled <= 10).mean()), ha="center", color=MUT, fontsize=7.5, fontfamily="Bahnschrift")
+    fig.text(0.5, 0.01, "remotezip-sampled SN-GSR frames | within 5m {:.0%}, 10m {:.0%} | clean tactical broadcast (highlights are harder) | github.com/d8maldon/futbol_tech".format((pooled <= 5).mean(), (pooled <= 10).mean()), ha="center", color=MUT, fontsize=7.5, fontfamily="Bahnschrift")
     fig.tight_layout(rect=[0, 0.02, 1, 0.95])
     out = os.path.join(FIG, "wc2026_topdown_validation.png")
     fig.savefig(out, facecolor=BG); plt.close(fig)

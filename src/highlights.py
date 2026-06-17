@@ -82,7 +82,7 @@ def main():
     for cell, c in zip(cells, top):
         panel(fig.add_subplot(cell), c)
     fig.text(0.5, 0.018,
-             "model: self-adjusting Elo seeded on 49k internationals + an in-game win-prob model (OOS log loss 0.82, calibrated) | live data: FotMob | {} goals tracked | github.com/d8maldon/hidden-timeout".format(ngoals),
+             "model: self-adjusting Elo seeded on 49k internationals + an in-game win-prob model (OOS log loss 0.82, calibrated) | live data: FotMob | {} goals tracked | github.com/d8maldon/futbol_tech".format(ngoals),
              ha="center", color=MUT, **font(8))
     out = os.path.join(FIG, "wc2026_highlights.png")
     fig.savefig(out, facecolor=BG)

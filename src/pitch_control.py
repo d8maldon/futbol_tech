@@ -130,7 +130,7 @@ def main():
             fontfamily="Bahnschrift", fontsize=9)
     ax.legend(loc="upper left", frameon=False, labelcolor=INK,
               prop={"family": "Bahnschrift", "size": 9})
-    fig.text(0.5, 0.01, "data: StatsBomb open 360 (free positional data) | {} visible players | github.com/d8maldon/hidden-timeout".format(len(players)),
+    fig.text(0.5, 0.01, "data: StatsBomb open 360 (free positional data) | {} visible players | github.com/d8maldon/futbol_tech".format(len(players)),
              ha="center", color=MUT, fontfamily="Bahnschrift", fontsize=8)
     fig.tight_layout(rect=[0, 0.02, 1, 1])
     fig.savefig(os.path.join(FIG, "pitch_control.png"), facecolor=BG)

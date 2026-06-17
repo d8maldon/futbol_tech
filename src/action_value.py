@@ -196,7 +196,7 @@ def render_leaderboard(players, out, squad_keys=None):
                  fontfamily="Bahnschrift", fontweight="bold")
     ax.text(0, 1.02, "value of an action = xT(end) - xT(start), summed over passes & carries | rates from 2018-2024 history, filtered to actual WC2026 squads",
             transform=ax.transAxes, color=MUT, fontsize=8.3, fontfamily="Bahnschrift")
-    fig.text(0.5, 0.01, "the soccer translation of NBA EPV (Cervone-D'Amour-Bornn-Goldsberry) | on-ball, location-only | github.com/d8maldon/hidden-timeout",
+    fig.text(0.5, 0.01, "the soccer translation of NBA EPV (Cervone-D'Amour-Bornn-Goldsberry) | on-ball, location-only | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, fontsize=7.5, fontfamily="Bahnschrift")
     fig.tight_layout(rect=[0, 0.02, 1, 1])
     fig.savefig(out, facecolor=BG)
@@ -254,7 +254,7 @@ def render_ticker(best, out):
     fig.suptitle("Valuing every decision: a goal build-up, pass by pass  (soccer EPV)",
                  color=INK, x=0.5, fontsize=14, fontfamily="Bahnschrift",
                  fontweight="bold")
-    fig.text(0.5, 0.01, "P (pass)  C (carry)  -> finish | value = xT(end)-xT(start), the soccer 'Change in EPV' | github.com/d8maldon/hidden-timeout",
+    fig.text(0.5, 0.01, "P (pass)  C (carry)  -> finish | value = xT(end)-xT(start), the soccer 'Change in EPV' | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, fontsize=7.5, fontfamily="Bahnschrift")
     fig.tight_layout(rect=[0, 0.03, 1, 0.95])
     fig.savefig(out, facecolor=BG)

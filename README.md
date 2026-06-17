@@ -1,4 +1,8 @@
-# hidden-timeout
+# futbol_tech
+
+World Cup 2026 football analytics: a cooling-break study, a validated match
+predictor, and broadcast computer vision. (Originally "hidden-timeout", after
+the cooling-break finding below.)
 
 Football has no timeouts. Except since 2014 it quietly does: when it is hot
 enough, the referee stops play around minute 30 of each half for a cooling or

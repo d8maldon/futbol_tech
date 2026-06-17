@@ -234,7 +234,7 @@ def fig_hero(res, threat, shots):
     axf.text(0, 0.30, "{} breaks in ISL, AFCON, Copa America 2024, WWC 2019 (est. purity {:.0f}%) | WC 2022 noise floor: {:.2f}/match".format(
         res["n_breaks"], 100 * res["purity_break_set"], res["wc22_fp_per_match"]),
         color=MUT, **font(8))
-    axf.text(0, -0.25, "match-clustered bootstrap CIs | StatsBomb open data | xT: 16x12 grid, value iteration | github.com/d8maldon/hidden-timeout",
+    axf.text(0, -0.25, "match-clustered bootstrap CIs | StatsBomb open data | xT: 16x12 grid, value iteration | github.com/d8maldon/futbol_tech",
              color=MUT, **font(8))
 
     fig.savefig(os.path.join(FIG, "hero.png"), facecolor=BG)

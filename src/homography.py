@@ -166,7 +166,7 @@ def main():
                   color=INK, loc="left", fontsize=11, fontfamily="Bahnschrift", fontweight="bold")
     fig.suptitle("Broadcast -> pitch: automatic homography (32-keypoint model)",
                  color=INK, x=0.5, fontsize=14, fontfamily="Bahnschrift", fontweight="bold")
-    fig.text(0.5, 0.01, "MEASURES visible players only | pitch keypoints from a HuggingFace pose model | github.com/d8maldon/hidden-timeout",
+    fig.text(0.5, 0.01, "MEASURES visible players only | pitch keypoints from a HuggingFace pose model | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, fontsize=8, fontfamily="Bahnschrift")
     fig.tight_layout(rect=[0, 0.02, 1, 0.95])
     out = os.path.join(FIG, "_homography_check.png")   # has broadcast pixels -> local

@@ -156,7 +156,7 @@ def render(tl, out_path):
         tl["date"], "goals, cards, substitutions from the live event feed"),
         color=INK, loc="left", pad=18, **font(12, True))
     fig.text(0.5, 0.01,
-             "exact events as they happened | data: FotMob | injuries not separately tracked (appear as subs) | github.com/d8maldon/hidden-timeout",
+             "exact events as they happened | data: FotMob | injuries not separately tracked (appear as subs) | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, **font(7))
     fig.tight_layout(rect=[0, 0.015, 1, 1])
     fig.savefig(out_path, facecolor=BG)

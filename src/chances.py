@@ -83,7 +83,7 @@ def main():
              fontfamily="Bahnschrift", fontsize=20, fontweight="bold")
     fig.text(0.03, 0.895, "{} shots placed by location and sized by xG. {} goals (stars); {} 'big chances' (xG>=0.30) went begging -- including Spain's 0.53 off the post.".format(
         len(shots), len(goals), len(big_miss)), color=MUT, fontfamily="Bahnschrift", fontsize=10)
-    fig.text(0.5, 0.015, "xG from FotMob shot data | the higher the xG, the more certain a goal | github.com/d8maldon/hidden-timeout",
+    fig.text(0.5, 0.015, "xG from FotMob shot data | the higher the xG, the more certain a goal | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, fontfamily="Bahnschrift", fontsize=8)
     out = os.path.join(FIG, "wc2026_chances.png")
     fig.savefig(out, facecolor=BG); plt.close(fig)

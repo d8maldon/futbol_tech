@@ -132,7 +132,7 @@ def render(frame, out):
     ax.set_title("Inferring the players the camera hid (one team, one moment)",
                  color=INK, loc="left", pad=30, fontfamily="Bahnschrift",
                  fontsize=13, fontweight="bold")
-    fig.text(0.5, 0.01, "dashed = inferred-to-true error | StatsBomb 360 | inferred positions are guesses, not measurements | github.com/d8maldon/hidden-timeout",
+    fig.text(0.5, 0.01, "dashed = inferred-to-true error | StatsBomb 360 | inferred positions are guesses, not measurements | github.com/d8maldon/futbol_tech",
              ha="center", color=MUT, fontsize=7.5, fontfamily="Bahnschrift")
     fig.tight_layout(rect=[0, 0.02, 1, 1])
     fig.savefig(out, facecolor=BG); plt.close(fig)
