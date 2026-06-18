@@ -13,6 +13,11 @@ It also benchmarks throughput: if mean per-frame time < 100 ms it clears the
 10 fps live budget on this GPU. (Demonstrated on the recorded match; a true live
 stream is the same loop fed by yt-dlp/ffmpeg.)
 
+Scope (prometheus Pass 2, Fei-Fei): this measures PER-FRAME detection + homography
++ gating throughput. It does NOT run the temporal Kalman tracker (that lives in
+visual_ai.py / track_fuse.py); the per-frame readout is therefore unsmoothed. The
+22 fps figure is the gated-detection budget, not full-tracking latency.
+
     python src/live_mode.py --count 600 --emit 10
 """
 import argparse

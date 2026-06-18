@@ -10,6 +10,11 @@ identical code ingests any pass-level feed (Opta/StatsBomb/in-house).
   field tilt    share of final-third passes (territorial dominance)
   xT-added      sum of Expected-Threat gained by passes & carries (our trained 16x12 grid)
 
+Provenance + scope (prometheus Pass 2, Fei-Fei): the xT grid is trained on 931k
+moves / 13.6k shots (data/processed/xt_meta.json). This runs on ONE StatsBomb match
+as a CAPABILITY DEMO -- the PPDA / field-tilt / xT numbers are single-match
+illustrations of the metrics, not a validated multi-match benchmark.
+
     python src/event_stats.py
 """
 import json

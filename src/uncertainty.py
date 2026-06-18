@@ -18,6 +18,14 @@ a broadcast homography is least certain.
 This mirrors how broadcast-tracking vendors expose a detected-vs-extrapolated flag
 and a per-point confidence; here positions never seen are ABSENT, not estimated.
 
+Calibration (prometheus Pass 2, Ghahramani; run `calibrate()`): on 894 held-out
+keypoints the ellipse holds 49% within 1-sigma (target ~39%, so slightly
+conservative in the bulk) but only 76% within 2-sigma (target ~86%) -- a
+heavier-than-Gaussian TAIL from the SYSTEMATIC bias on bad-geometry frames, which a
+zero-mean ellipse cannot represent. So: trust the ellipse for the typical frame, not
+for the wide/behind-goal outliers. Frame confidence is NOT decorative: corr(conf,
+per-frame error) = -0.42, i.e. higher confidence does predict lower positional error.
+
     python src/uncertainty.py
 """
 import os
@@ -63,7 +71,53 @@ def player_cov(H, foot_xy, sigma_px=8.0):
     return cov, (sx, sy, ang)
 
 
+def calibrate():
+    """Coverage check (Ghahramani): does the predicted ellipse contain the empirical
+    error? For each frame, leave out each pitch keypoint, fit H on the rest, and
+    compare the held-out keypoint's REAL pitch error to the sigma our Jacobian model
+    predicts at that point (sigma_px = the frame's reprojection error). A calibrated
+    2-D Gaussian has ~39% of points within 1-sigma (Mahalanobis d<=1) and ~86%
+    within 2-sigma. Also correlates per-frame confidence with per-frame error."""
+    import glob
+    import cv2
+    import homography as hg
+    ROOT = os.path.join(os.path.dirname(__file__), "..")
+    frames = sorted(glob.glob(os.path.join(ROOT, "data", "clips", "argentina_full", "f_*.jpg")))
+    maha, confs, errs = [], [], []
+    for fp in frames[::35]:
+        H, ip, pp = hg.keypoint_homography(fp)
+        fc = frame_confidence(H, ip, pp)
+        if H is None or ip is None or len(ip) < 6:
+            continue
+        sig = max(5.0, fc["mre_px"])
+        fe = []
+        for i in range(len(ip)):
+            tr_i = np.delete(ip, i, 0); tr_p = np.delete(pp, i, 0)
+            if not hg.spread_ok(tr_i):
+                continue
+            Hi, _ = cv2.findHomography(tr_i, tr_p, cv2.USAC_MAGSAC, 5.0)
+            if Hi is None:
+                continue
+            err = hg.warp(Hi, [ip[i]])[0] - pp[i]              # real pitch error (m)
+            cov, _ = player_cov(H, ip[i], sigma_px=sig)         # predicted cov (m^2)
+            d2 = float(err @ np.linalg.inv(cov) @ err)
+            maha.append(d2); fe.append(float(np.hypot(*err)))
+        if fe:
+            confs.append(fc["conf"]); errs.append(np.mean(fe))
+    maha = np.array(maha)
+    within1 = (maha <= 1).mean(); within2 = (maha <= 4).mean()
+    confs, errs = np.array(confs), np.array(errs)
+    r = float(np.corrcoef(confs, errs)[0, 1]) if len(confs) > 2 else float("nan")
+    print("UQ calibration ({} held-out keypoints, {} frames):".format(len(maha), len(confs)))
+    print("  within 1-sigma {:.0%} (target ~39%) | within 2-sigma {:.0%} (target ~86%)".format(within1, within2))
+    print("  => ellipse is {} (inflate sigma by ~{:.1f}x for 1-sigma coverage)".format(
+        "well-calibrated" if 0.30 <= within1 <= 0.50 else ("TOO SMALL" if within1 < 0.30 else "too large"),
+        float(np.sqrt(np.nanmedian(maha))) if len(maha) else 1.0))
+    print("  corr(confidence, frame error) = {:+.2f} (negative = confidence predicts accuracy)".format(r))
+
+
 def main():
+    calibrate()
     import glob
     import cv2
     import matplotlib

@@ -10,9 +10,20 @@ every frame first and gate accordingly:
     tight  -> HOLD the last shape (player on the grass, but can't localise the view)
     other  -> no pitch: blank the top-down, fall back to the data layer (OCR/events)
 
-Cheap, no training: grass-green ratio + edge/text density + whether the keypoint
-homography locked + how many players the detector found. Thresholds were tuned by
-eye on sampled WC2026 frames (see main()).
+Cheap, no training: WIDE = the pitch-keypoint homography locked; grass-green ratio
++ edge density then split the NON-wide frames into TIGHT vs OTHER.
+
+HONEST SCOPE + VALIDATION (prometheus Pass 2, Fei-Fei + Malik):
+- The WIDE decision is `homography_ok`, the SAME gate whose accuracy is already
+  validated downstream: when the homography locks, positions are ~5 m / LOO 2.5 m;
+  when it fails we do not track. So the critical gate inherits that validation; we
+  do NOT quote a separate classifier accuracy because an eyeball-labelled N=28
+  sample was too noisy to be reliable (the tight/other distinction is hard to label
+  from thumbnails).
+- The TIGHT vs OTHER split is a NON-CRITICAL heuristic (both mean "don't track";
+  it only chooses hold-last-shape vs data-layer fallback) and leans on grass-green,
+  a SHORTCUT that can misfire on different pitch hues / floodlit / snow -- a
+  distribution-shift risk, tuned here to daytime green broadcast.
 
     python src/camera_state.py            # validate on the full match, labelled sheet
 """
@@ -43,11 +54,18 @@ def edge_density(img):
 
 
 def classify(img, homography_ok, n_players):
-    """return (state, features). state in {wide, tight, other}."""
+    """return (state, features). state in {wide, tight, other}.
+
+    WIDE is anchored on homography_ok -- the pitch-keypoint model locking a view IS
+    the trackability signal, and it is what the pipeline actually gates on; adding
+    green/player thresholds on top only rejected good frames (prometheus Pass 2:
+    that version scored BELOW the homography-ok baseline). green/edges are used only
+    to split the NON-wide frames into TIGHT (grass on screen -> hold last shape) vs
+    OTHER (graphic/crowd -> data-layer fallback)."""
     green = grass_ratio(img)
     edges = edge_density(img)
     feat = {"green": green, "edges": edges, "h_ok": bool(homography_ok), "n": int(n_players)}
-    if homography_ok and green > GREEN_WIDE and n_players >= MIN_PLAYERS_WIDE:
+    if homography_ok:
         return "wide", feat
     if green > GREEN_TIGHT and edges < 0.18:        # grass on screen, not a graphic
         return "tight", feat

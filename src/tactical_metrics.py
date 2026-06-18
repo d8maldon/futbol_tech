@@ -2,15 +2,19 @@
 that survives ~5 m zone-grade noise because it is geometry, not pixels.
 
 Per team, per frame (from the visual_ai cache of warped positions in real metres):
-  compactness   convex-hull area (m^2) of the outfield block -- smaller = tighter
-  width         lateral spread (m)
-  depth         vertical spread (m)
-  block_x       team centroid up the pitch (territory / line-height proxy)
-  formation     players clustered into back/mid/front bands -> e.g. "4-3-3"
+  compactness   convex-hull area (m^2) of the VISIBLE block -- smaller = tighter
+  width         lateral spread (m) of visible players
+  depth         vertical spread (m) of visible players
+  block_x       VISIBLE-BLOCK centroid up the pitch -- ball-biased, NOT true
+                defensive-line height (a single broadcast shows whoever is near
+                the ball, so both teams' visible centroids drift toward the ball;
+                true line height needs full-22 tracking we do not have)
+  formation     visible IN-MOMENT shape: visible players clustered into 3 bands
+                (e.g. "5-4-2") -- the shape at that moment, NOT a base formation
 
-It also flags a FORMATION SWITCH: a sustained change in the band counts. These are
-exactly the reads the research said a single broadcast CAN do (formation-switch,
-compactness, line height); per-player marking is out of scope.
+Honest scope (prometheus Pass 2, Malik): these are VISIBLE-BLOCK reads. Compactness
+and width survive ~5 m noise and are the robust signal; block_x and formation are
+ball-biased and in-moment. Per-player marking and true line height are out of scope.
 
     python src/tactical_metrics.py            # over the cached Argentina match
 """
@@ -97,10 +101,10 @@ def main():
         for s in a.spines.values():
             s.set_color("#30363d")
         a.legend(frameon=False, labelcolor=INK, prop={"family": "Bahnschrift"})
-    ax[0].set_title("Team compactness (convex-hull area, m^2) -- lower = tighter block",
+    ax[0].set_title("Visible-block compactness (convex-hull area, m^2) -- lower = tighter",
                     color=INK, loc="left", fontfamily="Bahnschrift", fontweight="bold")
-    ax[1].set_title("Block height (team centroid up the pitch, m)", color=INK, loc="left",
-                    fontfamily="Bahnschrift", fontweight="bold")
+    ax[1].set_title("Visible-block centroid up the pitch (m) -- ball-biased, NOT line height",
+                    color=INK, loc="left", fontfamily="Bahnschrift", fontweight="bold")
     ax[1].set_xlabel("clip minute", color=MUT, fontfamily="Bahnschrift")
     fig.suptitle("WC2026 Argentina v Algeria -- live team-shape reads from broadcast tracking",
                  color=INK, x=0.5, fontfamily="Bahnschrift", fontsize=14, fontweight="bold")
