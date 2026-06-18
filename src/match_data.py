@@ -85,12 +85,16 @@ def load(mid):
     events = []
     for e in raw:
         typ = e.get("type")
-        if typ not in ("Goal", "Card", "Substitution"):
+        if typ not in ("Goal", "Card", "Substitution", "VAR"):
             continue
+        note = ""
+        if typ == "VAR":
+            vals = ((e.get("VAR") or {}).get("decision") or {}).get("value") or []
+            note = ", ".join(vals)
         events.append({"min": int(e.get("time") or 0), "type": typ,
                         "player": (e.get("player") or {}).get("name") or e.get("nameStr") or "",
                         "h": e.get("homeScore"), "a": e.get("awayScore"),
-                        "is_home": bool(e.get("isHome")), "card": e.get("card")})
+                        "is_home": bool(e.get("isHome")), "card": e.get("card"), "note": note})
 
     # --- shots (xG) ---
     shots = []

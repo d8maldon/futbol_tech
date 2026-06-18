@@ -240,16 +240,19 @@ def display_palette(team_rgb):
     return disp
 
 
-def render(states, team_rgb, m, out, fps, title):
+def render(states, team_rgb, m, out, fps, title, label="", frame_min_override=None):
     import cv2
     cmap = LinearSegmentedColormap.from_list("ctrl", [team_rgb[1], (0.93, 0.93, 0.93), team_rgb[0]])
     F = {"fontfamily": "Bahnschrift"}
     mins = m["wp_mins"]
-    # playhead: advance match-minute only on frames that SHOW the pitch, so the
-    # dashboard reveals the match story progressively (approx; no clock OCR here)
-    pitch = np.array([s["note"] != "no pitch view" for s in states], float)
-    cum = np.cumsum(pitch)
-    frame_min = np.clip(90.0 * cum / max(cum[-1], 1.0), 0, 98)
+    if frame_min_override is not None:
+        frame_min = np.clip(np.asarray(frame_min_override, float), 0, 98)
+    else:
+        # playhead: advance match-minute only on frames that SHOW the pitch, so the
+        # dashboard reveals the match story progressively (approx; no clock OCR here)
+        pitch = np.array([s["note"] != "no pitch view" for s in states], float)
+        cum = np.cumsum(pitch)
+        frame_min = np.clip(90.0 * cum / max(cum[-1], 1.0), 0, 98)
 
     fig = plt.figure(figsize=(16, 9), dpi=84); fig.patch.set_facecolor(BG)
     axw = fig.add_axes([0.02, 0.875, 0.96, 0.052])    # win-prob bar
@@ -358,16 +361,23 @@ def render(states, team_rgb, m, out, fps, title):
         # ===== EVENT TICKER =====
         axe.set_xlim(0, 1); axe.set_ylim(0, 1); axe.axis("off")
         axe.text(0, 0.98, "MATCH EVENTS", color=INK, fontsize=10, fontweight="bold", va="top", **F)
-        past = [e for e in m["events"] if e["min"] <= ti][-7:]
+        past = [e for e in m["events"] if e["min"] <= ti
+                and not (e["type"] == "Substitution" and not e["player"])][-7:]
         for k, e in enumerate(reversed(past)):
             y = 0.85 - k * 0.118
-            tag = {"Goal": "GOAL", "Card": "CARD", "Substitution": "SUB"}.get(e["type"], e["type"])
-            col = ARG_C if e["is_home"] else ALG_C
+            tag = {"Goal": "GOAL", "Card": "CARD", "Substitution": "SUB", "VAR": "VAR"}.get(e["type"], e["type"])
             latest = e is past[-1]
-            sc = "  {}-{}".format(*e["score"]) if e["type"] == "Goal" and e.get("score") else ""
+            if e["type"] == "Goal" and e.get("score"):
+                extra = "  {}-{}".format(*e["score"])
+            elif e["type"] == "VAR" and e.get("note"):
+                extra = " ({})".format(e["note"])
+            else:
+                extra = ""
+            col = "#ffb347" if e["type"] == "VAR" else (ARG_C if e["is_home"] else ALG_C)
             axe.text(0.0, y, "{}'".format(e["min"]), color=MUT, fontsize=9, va="center", **F)
-            axe.text(0.13, y, "{} {}{}".format(tag, e["player"], sc),
-                     color=col if latest else INK, fontsize=9.5 if latest else 8.5,
+            axe.text(0.13, y, "{} {}{}".format(tag, e["player"], extra),
+                     color=col if (latest or e["type"] == "VAR") else INK,
+                     fontsize=9.5 if latest else 8.5,
                      fontweight="bold" if latest else "normal", va="center", **F)
 
         # ===== RATINGS + PREDICTION =====
@@ -390,8 +400,9 @@ def render(states, team_rgb, m, out, fps, title):
 
         # ===== HEADER =====
         sch, sca = int(m["sc_h"][ti]), int(m["sc_a"][ti])
-        fig.suptitle("{} {}-{} {}    ·    visual-AI dashboard    ·    ~{}'".format(
-            m["home"], sch, sca, m["away"], ti), color=INK, x=0.5, y=0.978,
+        head = label if label else "visual-AI dashboard"
+        fig.suptitle("{}    ·    {} {}-{} {}    ·    ~{}'".format(
+            head, m["home"], sch, sca, m["away"], ti), color=INK, x=0.5, y=0.978,
             fontsize=15, fontweight="bold", **F)
 
     a = manim.FuncAnimation(fig, draw, frames=len(states), interval=1000 / fps)

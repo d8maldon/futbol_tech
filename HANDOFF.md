@@ -49,11 +49,30 @@ caches). The scripts re-fetch what they need on first run (all HTTPS uses
    player ratings (Messi 9.66 POTM). A match-minute playhead advances on pitch
    frames. Anti-flicker = EMA-homography + Kalman + confirmed-tracks-only; cut
    threshold tuned (CUT=55, was over-firing) and short no-pitch gaps hold the last
-   shape ("ESTIMATED"); only genuine no-pitch (~32%) blanks the top-down.
+   shape ("ESTIMATED"); only genuine no-pitch (~32%) blanks the top-down. The
+   top-down + pitch control are flipped about the x-axis (y -> PW-y) so near-camera
+   = bottom, matching the broadcast (verified by player correspondence, not
+   guessed). `src/moments.py` builds `wc2026_argentina_goals.mp4` — the focused
+   reel (Messi's 3 goals + Algeria's 8' disallowed offside, located by reading the
+   broadcast scoreboard), each window re-extracted at 20fps so it is smooth, the
+   dashboard over every frame, win-prob/xG/ticker pinned to that moment's
+   match-minute (the VAR offside shows in the ticker in amber). Top-down positional
+   accuracy AUDITED (`src/validate_positions.py` + a 9-agent adversarial review):
+   RELATIVE topology (left/right, near/far, which third) is robust on every frame
+   (Pearson 0.95-0.99) and is the signal the dashboard actually consumes; absolute
+   accuracy is ~5 m zone-grade (the SoccerNet-validated number), degrading badly on
+   wide full-stadium behind-goal shots (3/8 sampled frames). The LOO 2.55 m median
+   is optimistic/self-referential. Root cause of the residual line-offset +
+   elliptical centre circle = the DISTORTED roboflow 120x70->120x80 canonical pitch
+   in `homography._pitch_vertices` (the 5.1 m path uses real 105x68 vertices); fix =
+   switch to real vertices + best-of-4 orientation pick. EMA-homography + Kalman +
+   confirmed-tracks mitigate per-frame jitter but NOT this systematic bias. Do not
+   claim metre-precise per-player tracking; "~5 m, zone-accurate, relative
+   positioning robust" is the defensible claim.
    `_tactical_snapshot.png`. Files: `broadcast_track, homography, track_fuse,
    validate_topdown, tactical, tactical_clip, montage_clip, visual_ai, match_data,
-   cv_compare, pitch_control, minimap_track, fuse_eval, live_eval, replay, board,
-   wc2026, chances, highlights, compilation`.
+   moments, validate_positions, cv_compare, pitch_control, minimap_track,
+   fuse_eval, live_eval, replay, board, wc2026, chances, highlights, compilation`.
 
 ## Current state (2026-06-16, 18 WC2026 matches played)
 - Predictor is the full-history validated engine. **Spain ~21% title favourite.**

@@ -2,5 +2,7 @@ data/
 __pycache__/
 *.pyc
 figures/_*.png
+figures/_*.mp4
+figures/_concat.txt
 figures/board_*.png
 figures/wc2026_argentina_full.mp4
