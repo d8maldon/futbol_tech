@@ -44,13 +44,17 @@ import matplotlib.animation as manim
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import LinearSegmentedColormap
+from matplotlib.patches import Ellipse
 from scipy.optimize import linear_sum_assignment
 
 import homography as hg
 import match_data as MD
+import camera_state as cstate
+import uncertainty as uq
 from broadcast_track import detect
 from tactical import hull, jersey_color
 from track_fuse import Kalman, appearance, appdist, ema_app
+from tactical_metrics import team_shape
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 CLIPS = os.path.join(ROOT, "data", "clips")
@@ -140,24 +144,28 @@ def cv_pass(frames, cen):
         if cut:
             tracks, Hs, last_cur, gap = [], None, [], 99  # hard cut: reset identity,
             # do NOT hold positions across a real cut and do NOT blank for it
-        H, _, _ = hg.keypoint_homography(fp)
+        H, ip, pp = hg.keypoint_homography(fp)
         players, ball, (h, w) = detect(fp)
         boxes = [[float(v) for v in b] + [team_of(img, b)] for _, _, b, _ in players]
+        cam, _ = cstate.classify(img, H is not None, len(players))   # gate (camera_state)
+        fc = uq.frame_confidence(H, ip, pp)                          # calibration confidence
         if H is None:
             gap += 1
             if gap <= HOLD and last_cur:                # ESTIMATE: hold last shape,
                 dim = max(0.25, 1.0 - gap / (HOLD + 1.0))   # fading as the gap grows
-                est = [[x, y, tm, a * dim, False] for x, y, tm, a, _ in last_cur]
+                est = [[x, y, tm, a * dim, False, sx, sy, an] for x, y, tm, a, _, sx, sy, an in last_cur]
                 states.append({"fp": fp, "boxes": boxes, "tracks": est, "ball": last_ball,
-                               "wh": (w, h), "note": "estimated", "est": True})
+                               "wh": (w, h), "note": "estimated", "est": True, "cam": cam, "conf": 0.0})
             else:                                       # genuinely no pitch in view
                 tracks, Hs = [], None
                 states.append({"fp": fp, "boxes": boxes, "tracks": [], "ball": None,
-                               "wh": (w, h), "note": "no pitch view"})
+                               "wh": (w, h), "note": "no pitch view", "cam": cam, "conf": 0.0})
             continue
         gap = 0
         Hs = H if Hs is None else A_HOMO * H + (1 - A_HOMO) * Hs
         H = Hs / Hs[2, 2]                               # smoothed homography
+        Hinv = np.linalg.inv(H)
+        sig = max(5.0, fc["mre_px"])                    # calibration uncertainty (px)
         dets, dapp, dteam = [], [], []
         for fx, fy, b, _ in players:
             p = hg.warp(H, [[fx, fy]])[0]
@@ -196,13 +204,16 @@ def cv_pass(frames, cen):
             fade_out = 1.0 if measured else max(0.28, 1.0 - t["miss"] / MAX_MISS)
             alpha = float(np.clip(fade_in * fade_out, 0.0, 1.0))
             tm = max(t["votes"], key=t["votes"].get)
-            cur.append([float(t["kf"].x[0]), float(t["kf"].x[1]), int(tm), alpha, bool(measured)])
+            px, py = float(t["kf"].x[0]), float(t["kf"].x[1])
+            imgpt = hg.warp(Hinv, [[px, py]])[0]            # back to image for the Jacobian
+            _, (sx, sy, ang) = uq.player_cov(H, imgpt, sigma_px=sig)
+            cur.append([px, py, int(tm), alpha, bool(measured), float(sx), float(sy), float(ang)])
         bw = hg.warp(H, [[ball[0], ball[1]]])[0] if ball is not None else None
         ball_xy = [float(bw[0]), float(bw[1])] if bw is not None and 0 <= bw[0] <= PL and 0 <= bw[1] <= PW else None
         if cur:                                         # remember for gap estimation
             last_cur, last_ball = cur, ball_xy
         states.append({"fp": fp, "boxes": boxes, "tracks": cur, "ball": ball_xy,
-                       "wh": (w, h), "note": ""})
+                       "wh": (w, h), "note": "", "cam": cam, "conf": fc["conf"]})
     return states
 
 
@@ -303,25 +314,35 @@ def render(states, team_rgb, m, out, fps, title, label="", frame_min_override=No
         # touchline at y=PW (top); flipping it puts near at the bottom so the
         # top-down matches what you see in the broadcast (also un-mirrors the map)
         hg.draw_pitch(axp); tr = d["tracks"]
-        trd = [[t[0], PW - t[1], t[2], t[3]] for t in tr]
+        # flip about x-axis (y->PW-y, angle negated) + carry the covariance ellipse
+        trd = [[t[0], PW - t[1], t[2], t[3], t[5], t[6], -t[7]] for t in tr]
         bd = [d["ball"][0], PW - d["ball"][1]] if d["ball"] is not None else None
         for c in range(2):
             grp = [t for t in trd if t[2] == c]
-            for t in grp:
+            for t in grp:                                # 1-sigma uncertainty ellipse
+                axp.add_patch(Ellipse((t[0], t[1]), 2 * t[4], 2 * t[5], angle=t[6],
+                              facecolor=team_rgb[c], edgecolor="none", alpha=0.16 * t[3], zorder=4))
                 axp.scatter([t[0]], [t[1]], s=110, facecolor=team_rgb[c], edgecolors=BG,
                             lw=1.1, alpha=t[3], zorder=5)
             if len(grp) >= 3:
                 hull(axp, np.array([[t[0], t[1]] for t in grp]), team_rgb[c])
         if bd is not None:
             axp.scatter([bd[0]], [bd[1]], s=60, c=BALLC, edgecolors=BG, lw=1, zorder=7)
+        # live tactical readout (visible-block compactness)
+        sa = team_shape([[t[0], t[1]] for t in trd if t[2] == 0])
+        sb = team_shape([[t[0], t[1]] for t in trd if t[2] == 1])
+        if sa and sb and not blank:
+            axp.text(PL / 2, PW - 1.5, "compactness  ARG {:.0f}  ·  ALG {:.0f} m2".format(sa["area"], sb["area"]),
+                     ha="center", va="top", color=MUT, fontsize=7.5, **F)
         if blank:
-            axp.text(PL / 2, PW / 2, "NO PITCH VIEW", ha="center", va="center", color="#ffb347",
-                     fontsize=14, fontweight="bold", **F)
+            lbl = "NO PITCH VIEW · graphic/replay" if d.get("cam") == "other" else "NO PITCH VIEW"
+            axp.text(PL / 2, PW / 2, lbl, ha="center", va="center", color="#ffb347",
+                     fontsize=13, fontweight="bold", **F)
         elif est:
-            axp.text(PL / 2, 2, "ESTIMATED — holding last shape", ha="center", va="bottom",
+            axp.text(PL / 2, 2, "CLOSE-UP · holding last shape (estimated)", ha="center", va="bottom",
                      color="#ffb347", fontsize=8, **F)
-        axp.set_title("top-down — visible team shapes", color=INK, loc="left",
-                      fontsize=10.5, fontweight="bold", **F)
+        axp.set_title("top-down — shapes + 1-sigma ellipses  ·  conf {:.2f}".format(d.get("conf", 0.0)),
+                      color=INK, loc="left", fontsize=10.5, fontweight="bold", **F)
 
         # ===== PITCH CONTROL ===== (uses the same x-axis-flipped positions)
         hg.draw_pitch(axc)
