@@ -75,10 +75,26 @@ caches). The scripts re-fetch what they need on first run (all HTTPS uses
    already correct.) NOTE the broadcast canonical (105x68 m) now DIVERGES from the
    StatsBomb-120x80 data demos (pitch_control.py, chances, compilation) -- those use
    their own native data frame and are unaffected.
-   `_tactical_snapshot.png`. Files: `broadcast_track, homography, track_fuse,
-   validate_topdown, tactical, tactical_clip, montage_clip, visual_ai, match_data,
-   moments, validate_positions, cv_compare, pitch_control, minimap_track,
-   fuse_eval, live_eval, replay, board, wc2026, chances, highlights, compilation`.
+   `_tactical_snapshot.png`.
+
+4. **Tactical-analytics stack** (the "be the best" roadmap, built + prometheus
+   Pass 2 reviewed/signed-off; see notes/council-log.md). `src/camera_state.py`
+   gates tracking on the homography lock (wide) and splits the rest tight/other for
+   the fallback. `src/uncertainty.py` gives per-frame calibration confidence
+   (corr -0.42 with error) + per-player covariance ellipses (calibrated in the bulk:
+   49% within 1-sigma; heavier tail on bad frames). `src/tactical_metrics.py`
+   visible-block compactness / width / centroid + in-moment formation shape (figure
+   `wc2026_tactical_metrics.png`). `src/event_stats.py` Tier-1 event analytics --
+   pass network / PPDA / field tilt / xT-added on StatsBomb data (figure
+   `wc2026_event_analytics.png`; WC2026 has no public pass data). `src/live_mode.py`
+   camera-gated per-frame pipeline at ~22 fps on the 4070 (clears the 10 fps live
+   budget). All honestly scoped: visible-block reads, ~5 m zone-grade, not full-22.
+
+   Files: `broadcast_track, homography, track_fuse, validate_topdown, tactical,
+   tactical_clip, montage_clip, visual_ai, match_data, moments, validate_positions,
+   camera_state, uncertainty, tactical_metrics, event_stats, live_mode, cv_compare,
+   pitch_control, minimap_track, fuse_eval, live_eval, replay, board, wc2026,
+   chances, highlights, compilation`.
 
 ## Current state (2026-06-16, 18 WC2026 matches played)
 - Predictor is the full-history validated engine. **Spain ~21% title favourite.**
