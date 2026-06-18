@@ -89,6 +89,11 @@ caches). The scripts re-fetch what they need on first run (all HTTPS uses
    `wc2026_event_analytics.png`; WC2026 has no public pass data). `src/live_mode.py`
    camera-gated per-frame pipeline at ~22 fps on the 4070 (clears the 10 fps live
    budget). All honestly scoped: visible-block reads, ~5 m zone-grade, not full-22.
+   INTEGRATED into the `visual_ai` dashboard: cv_pass stores camera-state + per-frame
+   confidence + per-track covariance, and the top-down panel now draws 1-sigma
+   uncertainty ellipses, shows the calibration confidence, a live compactness
+   readout, and camera-state-aware no-pitch labels (close-up vs graphic/replay).
+   Reflected in `wc2026_argentina_full.mp4`, `_clip.mp4`, and `_goals.mp4`.
 
    Files: `broadcast_track, homography, track_fuse, validate_topdown, tactical,
    tactical_clip, montage_clip, visual_ai, match_data, moments, validate_positions,
