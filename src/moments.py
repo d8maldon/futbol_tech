@@ -22,12 +22,20 @@ FIG = V.FIG
 VID = os.path.join(CLIPS, "_arg_full.mp4")
 FPS = 20
 
+# windows in SECONDS of _arg_full.mp4 (located via the broadcast scoreboard clock)
 MOMENTS = [
+    dict(key="offside_messi", label="MESSI goal DISALLOWED  -  offside (~5')", s=93, d=17, m0=4.3, m1=5.5),
     dict(key="offside08", label="ALGERIA goal DISALLOWED  -  offside (8')", s=130, d=17, m0=7.5, m1=8.5),
     dict(key="goal17", label="MESSI 1-0 (17')  -  a 0.09 xG strike", s=148, d=24, m0=11.5, m1=17.5),
     dict(key="goal60", label="MESSI 2-0 (60')", s=427, d=23, m0=58.0, m1=60.5),
     dict(key="goal76", label="MESSI 3-0 (76')  -  hat-trick", s=629, d=24, m0=75.0, m1=76.5),
 ]
+
+# Messi's disallowed offside goal (~5') is NOT in the FotMob feed (no VAR logged);
+# added here from the broadcast so the ticker reflects it, clearly the same as the
+# official Algeria call in style
+MESSI_OFFSIDE = {"min": 5, "type": "VAR", "player": "Lionel Messi", "h": 0, "a": 0,
+                 "is_home": True, "note": "Goal ruled out, offside", "card": None}
 
 
 def extract(seg):
@@ -43,6 +51,7 @@ def extract(seg):
 
 def main():
     m = MD.load(V.MATCH_ID)
+    m["events"] = sorted(m["events"] + [MESSI_OFFSIDE], key=lambda e: e["min"])
     parts = []
     for seg in MOMENTS:
         frames = extract(seg)

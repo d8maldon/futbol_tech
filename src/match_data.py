@@ -147,10 +147,16 @@ def load(mid):
     cum_h = np.array([sum(s["xg"] for s in shots if s["is_home"] and s["min"] <= t) for t in mins])
     cum_a = np.array([sum(s["xg"] for s in shots if not s["is_home"] and s["min"] <= t) for t in mins])
 
+    # xG-DESERVED win prob: same Skellam model but the "lead" is the cumulative xG
+    # difference (what the chances deserved), not the actual scoreline -- shows
+    # over/under-performance vs the goals that went in
+    xgd = cum_h - cum_a
+    wp_xg = np.array([wp(float(xgd[t]), int(mins[t]), mh, ma)[0] for t in range(len(mins))])
+
     return {"home": hn, "away": an, "events": events, "shots": shots, "ratings": ratings,
             "goals": goals, "pre_match": pm, "wp_mins": mins,
             "wp_home": np.array(ph), "wp_draw": np.array(pd), "wp_away": np.array(pa),
-            "sc_h": np.array(sc_h), "sc_a": np.array(sc_a),
+            "wp_xg": wp_xg, "sc_h": np.array(sc_h), "sc_a": np.array(sc_a),
             "xg_h": cum_h, "xg_a": cum_a,
             "final_h": final_h, "final_a": final_a, "mu": (mh, ma)}
 

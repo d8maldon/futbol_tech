@@ -284,7 +284,9 @@ def render(states, team_rgb, m, out, fps, title, label="", frame_min_override=No
         if pdr > 0.05:
             axw.text(ph + pdr / 2, 0.5, "draw {:.0%}".format(pdr), va="center", ha="center",
                      color="white", fontsize=8, **F)
-        axw.set_title("LIVE WIN PROBABILITY  ·  our temperature-calibrated model (OOS log-loss 0.82)",
+        xph = float(m["wp_xg"][ti])                       # xG-DESERVED ARG win% (white tick)
+        axw.add_patch(plt.Rectangle((xph - 0.0015, -0.05), 0.003, 1.1, color="white", zorder=6, clip_on=False))
+        axw.set_title("LIVE WIN PROBABILITY  ·  bar = score-based (OOS 0.82);  white tick = xG-deserved (ARG {:.0%})".format(xph),
                       color=MUT, loc="center", fontsize=9, **F)
 
         # ===== BROADCAST =====
