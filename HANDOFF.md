@@ -62,13 +62,19 @@ caches). The scripts re-fetch what they need on first run (all HTTPS uses
    (Pearson 0.95-0.99) and is the signal the dashboard actually consumes; absolute
    accuracy is ~5 m zone-grade (the SoccerNet-validated number), degrading badly on
    wide full-stadium behind-goal shots (3/8 sampled frames). The LOO 2.55 m median
-   is optimistic/self-referential. Root cause of the residual line-offset +
-   elliptical centre circle = the DISTORTED roboflow 120x70->120x80 canonical pitch
-   in `homography._pitch_vertices` (the 5.1 m path uses real 105x68 vertices); fix =
-   switch to real vertices + best-of-4 orientation pick. EMA-homography + Kalman +
-   confirmed-tracks mitigate per-frame jitter but NOT this systematic bias. Do not
-   claim metre-precise per-player tracking; "~5 m, zone-accurate, relative
-   positioning robust" is the defensible claim.
+   is optimistic/self-referential. FIXED: `homography._pitch_vertices` + `draw_pitch`
+   + the whole broadcast pipeline (PL,PW) now use REAL FIFA 105x68 m geometry (true
+   9.15 m centre circle, real 16.5 m box depth -- was wrongly 20.15 m, no aspect
+   stretch), so the canonical is a true similarity of the real pitch and warped
+   points are real metres. This removed the systematic distortion (modest metric
+   gain: within-5 m 74%->78%) but CONFIRMED the residual ~2-5 m is keypoint-
+   detection-limited, not canonical-limited; EMA-homography + Kalman + confirmed-
+   tracks smooth per-frame jitter but not a sustained bad camera angle. Do not claim
+   metre-precise per-player tracking; "~5 m, zone-accurate, relative positioning
+   robust" is the defensible claim. (Orientation best-of-4 not needed: topology was
+   already correct.) NOTE the broadcast canonical (105x68 m) now DIVERGES from the
+   StatsBomb-120x80 data demos (pitch_control.py, chances, compilation) -- those use
+   their own native data frame and are unaffected.
    `_tactical_snapshot.png`. Files: `broadcast_track, homography, track_fuse,
    validate_topdown, tactical, tactical_clip, montage_clip, visual_ai, match_data,
    moments, validate_positions, cv_compare, pitch_control, minimap_track,

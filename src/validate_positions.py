@@ -38,19 +38,19 @@ from broadcast_track import detect
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 FRAMES = os.path.join(ROOT, "data", "clips", "argentina_full")
 FIG = os.path.join(ROOT, "figures")
-PL, PW = 120.0, 80.0
-MX, MY = 105.0 / PL, 68.0 / PW       # StatsBomb units -> real metres
+PL, PW = 105.0, 68.0                 # real FIFA metres (matches homography canonical)
+MX, MY = 1.0, 1.0                    # canonical is already in metres
 INK = "#e6edf3"; BG = "#0d1117"
 
 # pitch lines in StatsBomb 120x80 units, for the reprojection overlay
 def pitch_lines():
-    L = [[(0, 0), (120, 0)], [(120, 0), (120, 80)], [(120, 80), (0, 80)], [(0, 80), (0, 0)],
-         [(60, 0), (60, 80)],
-         [(0, 18), (18, 18)], [(18, 18), (18, 62)], [(18, 62), (0, 62)],
-         [(120, 18), (102, 18)], [(102, 18), (102, 62)], [(102, 62), (120, 62)]]
+    L = [[(0, 0), (105, 0)], [(105, 0), (105, 68)], [(105, 68), (0, 68)], [(0, 68), (0, 0)],
+         [(52.5, 0), (52.5, 68)],
+         [(0, 13.84), (16.5, 13.84)], [(16.5, 13.84), (16.5, 54.16)], [(16.5, 54.16), (0, 54.16)],
+         [(105, 13.84), (88.5, 13.84)], [(88.5, 13.84), (88.5, 54.16)], [(88.5, 54.16), (105, 54.16)]]
     th = np.linspace(0, 2 * np.pi, 40)
-    circ = [[(60 + 10 * np.cos(a), 40 + 10 * np.sin(a)),
-             (60 + 10 * np.cos(b), 40 + 10 * np.sin(b))] for a, b in zip(th[:-1], th[1:])]
+    circ = [[(52.5 + 9.15 * np.cos(a), 34 + 9.15 * np.sin(a)),
+             (52.5 + 9.15 * np.cos(b), 34 + 9.15 * np.sin(b))] for a, b in zip(th[:-1], th[1:])]
     return L + circ
 
 

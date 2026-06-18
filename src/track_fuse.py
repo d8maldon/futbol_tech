@@ -34,7 +34,7 @@ from broadcast_track import DEFAULT_WEIGHTS, PERSON, SPORTS_BALL
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 FIG = os.path.join(ROOT, "figures")
-PL, PW = 120.0, 80.0
+PL, PW = 105.0, 68.0          # real FIFA metres (matches homography canonical)
 BG = "#0d1117"; INK = "#e6edf3"; MUT = "#7d8590"
 MEAS = "#5e9bff"; GHOST = "#ff7a1a"; BALLC = "#ffd23f"
 

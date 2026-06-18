@@ -7,10 +7,12 @@ model: a 32-point football-pitch pose model (HuggingFace, reachable here) marks
 known pitch landmarks (box corners, halfway line, centre circle), each of which
 has a known real pitch coordinate, and cv2.findHomography solves for H.
 
-Canonical frame is StatsBomb 120x80 (what pitch_control.py and the 360 data use),
-so warped points feed the existing analytics. We gate on >=4 well-spread
-keypoints and draw a reprojection check (project the pitch model back onto the
-frame -- if the lines land on the painted lines, H is good).
+Canonical frame is the REAL pitch in metres (105 x 68, true FIFA marking
+positions), so the homography is a true similarity of the real pitch and warped
+points are real metres (an earlier version used a distorted 120x70->120x80 frame
+which stretched the y-axis and over-sized the boxes/centre circle). We gate on
+>=4 well-spread keypoints and draw a reprojection check (project the pitch model
+back onto the frame -- if the lines land on the painted lines, H is good).
 
 Honest scope: this MEASURES the players the camera can see. Off-screen players
 are a separate (hard) inference problem (see fuse_eval.py).
@@ -28,15 +30,19 @@ import numpy as np
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 FIG = os.path.join(ROOT, "figures")
 KP_MODEL = os.path.join(ROOT, "data", "models", "pitch_kp.pt")
-PL, PW = 120.0, 80.0
+PL, PW = 105.0, 68.0          # REAL FIFA pitch in metres (was a distorted 120x80)
 BG = "#0d1117"; INK = "#e6edf3"; MUT = "#7d8590"
 ATT = "#5e9bff"; DEF = "#ff7a1a"; BALL = "#ffd23f"
 
 
 def _pitch_vertices():
-    """the 32 roboflow pitch landmarks (cm, 120x70) -> StatsBomb 120x80"""
-    W, L = 7000.0, 12000.0
-    pbw, pbl, gbw, gbl, ccr, psd = 4100., 2015., 1832., 550., 915., 1100.
+    """the 32 roboflow pitch landmarks at their REAL FIFA positions, in metres on a
+    105x68 m pitch (no aspect distortion, correct box depth) -- so the homography is
+    a true similarity of the real pitch and warped positions are real metres"""
+    L, W = 105.0, 68.0
+    pbw, pbl = 40.32, 16.5      # penalty box: width, depth (was a wrong 20.15 depth)
+    gbw, gbl = 18.32, 5.5       # goal (6-yard) box: width, depth
+    ccr, psd = 9.15, 11.0       # centre-circle radius, penalty-spot distance
     v = [
         (0, 0), (0, (W - pbw) / 2), (0, (W - gbw) / 2), (0, (W + gbw) / 2),
         (0, (W + pbw) / 2), (0, W), (gbl, (W - gbw) / 2), (gbl, (W + gbw) / 2),
@@ -49,7 +55,7 @@ def _pitch_vertices():
         (L, (W + gbw) / 2), (L, (W + pbw) / 2), (L, W),
         (L / 2 - ccr, W / 2), (L / 2 + ccr, W / 2),
     ]
-    return np.array([(x / L * PL, y / W * PW) for x, y in v], np.float32)
+    return np.array(v, np.float32)
 
 
 PITCH = _pitch_vertices()
@@ -107,9 +113,9 @@ def draw_pitch(ax):
     ax.plot([0, 0, PL, PL, 0], [0, PW, PW, 0, 0], color="#fff", lw=1.2, alpha=0.55)
     ax.plot([PL / 2, PL / 2], [0, PW], color="#fff", lw=1, alpha=0.4)
     th = np.linspace(0, 2 * np.pi, 60)
-    ax.plot(PL / 2 + 10 * np.cos(th), PW / 2 + 10 * np.sin(th), color="#fff", lw=1, alpha=0.4)
-    for x0 in (0, PL - 18):
-        ax.plot([x0, x0 + 18, x0 + 18, x0], [18, 18, 62, 62], color="#fff", lw=1, alpha=0.4)
+    ax.plot(PL / 2 + 9.15 * np.cos(th), PW / 2 + 9.15 * np.sin(th), color="#fff", lw=1, alpha=0.4)
+    for x0 in (0, PL - 16.5):     # penalty box: 16.5 m deep, 40.32 m wide
+        ax.plot([x0, x0 + 16.5, x0 + 16.5, x0], [13.84, 13.84, 54.16, 54.16], color="#fff", lw=1, alpha=0.4)
     ax.set_xlim(-3, PL + 3); ax.set_ylim(-3, PW + 3); ax.set_aspect("equal")
     ax.set_xticks([]); ax.set_yticks([])
     for s in ax.spines.values():

@@ -25,7 +25,7 @@ from broadcast_track import detect
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 FIG = os.path.join(ROOT, "figures")
 SEG_MODEL = os.path.join(ROOT, "data", "models", "yolov8n-seg.pt")
-PL, PW = 120.0, 80.0
+PL, PW = 105.0, 68.0          # real FIFA metres (matches homography canonical)
 BG = "#0d1117"; INK = "#e6edf3"; MUT = "#7d8590"
 
 

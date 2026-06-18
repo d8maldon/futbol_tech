@@ -55,7 +55,7 @@ from track_fuse import Kalman, appearance, appdist, ema_app
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 CLIPS = os.path.join(ROOT, "data", "clips")
 FIG = os.path.join(ROOT, "figures")
-PL, PW = 120.0, 80.0
+PL, PW = 105.0, 68.0          # real FIFA metres (matches homography canonical)
 BG = "#0d1117"; INK = "#e6edf3"; MUT = "#7d8590"; BALLC = "#ffd23f"; GREEN = "#3fb950"
 ARG_C, ALG_C = (0.30, 0.78, 1.0), (1.0, 0.45, 0.20)   # cyan / orange, matches palette
 MATCH_ID = "4667812"                                  # Argentina 3-0 Algeria
@@ -313,10 +313,10 @@ def render(states, team_rgb, m, out, fps, title, label="", frame_min_override=No
         if bd is not None:
             axp.scatter([bd[0]], [bd[1]], s=60, c=BALLC, edgecolors=BG, lw=1, zorder=7)
         if blank:
-            axp.text(60, 40, "NO PITCH VIEW", ha="center", va="center", color="#ffb347",
+            axp.text(PL / 2, PW / 2, "NO PITCH VIEW", ha="center", va="center", color="#ffb347",
                      fontsize=14, fontweight="bold", **F)
         elif est:
-            axp.text(60, 3, "ESTIMATED — holding last shape", ha="center", va="bottom",
+            axp.text(PL / 2, 2, "ESTIMATED — holding last shape", ha="center", va="bottom",
                      color="#ffb347", fontsize=8, **F)
         axp.set_title("top-down — visible team shapes", color=INK, loc="left",
                       fontsize=10.5, fontweight="bold", **F)
@@ -327,7 +327,7 @@ def render(states, team_rgb, m, out, fps, title, label="", frame_min_override=No
         if surf is None:
             ema["c"] = None
             if blank:
-                axc.text(60, 40, "NO PITCH VIEW", ha="center", va="center", color="#ffb347",
+                axc.text(PL / 2, PW / 2, "NO PITCH VIEW", ha="center", va="center", color="#ffb347",
                          fontsize=12, fontweight="bold", **F)
         else:
             ctrl, vis = surf
