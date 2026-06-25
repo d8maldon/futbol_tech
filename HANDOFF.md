@@ -145,3 +145,25 @@ games — that's overfitting (we demonstrated it, then discarded it).
 - **xG-informed live rating updates** — update ratings by *deserved* (xG)
   performance, not just results (proposed; only smaller-sample validation
   possible, since the 49k OOS set has no xG).
+
+## Session 2026-06-25 — dashboard themes + real-time + agentic (branch `feat/dashboard-themes`, PR #1)
+- **Themeable dashboard.** `visual_ai.py` takes `--theme broadcast|editorial|telemetry`
+  (+`legacy`), dispatching over a shared interface (`make_axes` + `draw_frame`) in
+  `src/dashboard_themes.py`. Three audience-tuned skins over ONE CV+match-data pass:
+  broadcast=PITCHVISION (fans), editorial=THE PRESSING LINES (analysts),
+  telemetry=PITCHWALL (staff). Render: `--render-only --theme X` -> `wc2026_<name>_<theme>.mp4`.
+- **Pitch rendering** switched to **mplsoccer** (real IFAB markings incl. goals) and
+  **Voronoi pitch control** (replaced the goal-less hand-rolled pitch + proximity softmax).
+  New dep `mplsoccer` (in requirements.txt). `dashboard_themes.draw_pitch` kept as a complete
+  zero-dep fallback; `mpl_pitch` + `voronoi_regions` are the mplsoccer path.
+- **Offline theme harness** (no ffmpeg/GPU/network): `_preview_data.py` + `_preview_theme.py`
+  (`python src/_preview_theme.py <theme> [live|blank|est]`); animation-loop check `_smoke_render.py`.
+- **`live_dashboard.py`** — real-time runner; paints a theme from a live source
+  (synthetic|states|video|screen|camera) and encodes mp4 via OpenCV (NO ffmpeg). ~6-10 fps
+  (matplotlib); a cv2/GL fast-path is the route to 30 fps+.
+- **`analyst.py`** — agentic per-tick analyst (goal/VAR/turning-point/xG/control insights +
+  panel pick). Backends: rule_based (anywhere) / claude (Anthropic SDK, ANTHROPIC_API_KEY,
+  claude-haiku-4-5). Wire `run()`'s sink into a theme ticker for a live co-analyst.
+- **Open next:** cv2/GL fast-path renderer (true real-time); re-render the real MP4s on the
+  GPU box (`pip install -r requirements.txt` first); wire analyst insights into the live ticker;
+  team-aware palettes (editorial/telemetry currently use house colours, not kit-derived).
