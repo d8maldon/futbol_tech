@@ -6,6 +6,7 @@ requests
 urllib3
 scikit-learn
 scipy
+mplsoccer          # battle-tested pitch rendering + Voronoi pitch control (dashboard themes)
 
 # computer vision (broadcast -> top-down, live input, validation)
 opencv-python

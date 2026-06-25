@@ -434,6 +434,15 @@ def render(states, team_rgb, m, out, fps, title, label="", frame_min_override=No
     plt.close(fig)
 
 
+def _render(theme, states, team_rgb, m, out, fps, title, label="", frame_min_override=None):
+    """dispatch to a theme module (broadcast|editorial|telemetry) or the legacy look."""
+    if theme == "legacy":
+        return render(states, team_rgb, m, out, fps, title, label, frame_min_override)
+    import dashboard_themes as T
+    return T.render(T.get(theme), states, team_rgb, m, out, fps,
+                    label=label, frame_min_override=frame_min_override)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--video", default="")
@@ -443,6 +452,7 @@ def main():
     ap.add_argument("--cv-only", action="store_true", help="build the state cache, skip render")
     ap.add_argument("--limit", type=int, default=0, help="cap frames (for a quick test)")
     ap.add_argument("--range", default="", help="A,B render only states[A:B] to a _testAB file")
+    ap.add_argument("--theme", default="broadcast", help="broadcast | editorial | telemetry | legacy")
     args = ap.parse_args()
     os.makedirs(FIG, exist_ok=True)
     frame_dir = os.path.join(CLIPS, args.name)
@@ -478,15 +488,16 @@ def main():
     print("match data: {} {}-{} {} | pre-match P(H) {:.2f} | POTM {}".format(
         m["home"], m["final_h"], m["final_a"], m["away"], m["pre_match"]["p_h"],
         m["ratings"][0]["name"] if m["ratings"] else "?"))
+    tag = "" if args.theme == "legacy" else "_" + args.theme
     if args.range:
         a, b = (int(v) for v in args.range.split(","))
-        out = os.path.join(FIG, "wc2026_{}_test{}_{}.mp4".format(args.name, a, b))
-        print("rendering test range [{}:{}] -> {}".format(a, b, out))
-        render(states[a:b], team_rgb, m, out, args.fps, title)
+        out = os.path.join(FIG, "wc2026_{}{}_test{}_{}.mp4".format(args.name, tag, a, b))
+        print("rendering [{}] test range [{}:{}] -> {}".format(args.theme, a, b, out))
+        _render(args.theme, states[a:b], team_rgb, m, out, args.fps, title)
     else:
-        out = os.path.join(FIG, "wc2026_{}.mp4".format(args.name))
-        print("rendering", len(states), "frames ->", out)
-        render(states, team_rgb, m, out, args.fps, title)
+        out = os.path.join(FIG, "wc2026_{}{}.mp4".format(args.name, tag))
+        print("rendering [{}] {} frames -> {}".format(args.theme, len(states), out))
+        _render(args.theme, states, team_rgb, m, out, args.fps, title)
     print("wrote", out)
 
 
