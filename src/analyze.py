@@ -10,7 +10,28 @@ Design notes, learned the hard way:
 - Only hot-core tournaments enter the break set. Detections elsewhere are
   statistically indistinguishable from the WC 2022 false-positive floor.
 - Bootstrap resamples matches, not windows.
+
+AUDIT-DRAFT (opt-in --strict mode; validate on the data box):
+  The headline numbers below are produced by the DEFAULT (non-strict) path and
+  are unchanged. Passing strict=True (CLI: --strict) turns on four audit fixes
+  so the maintainer can see how each headline moves:
+    #15  subs ~1.8x is partly circular: substitution stoppages are themselves
+         classified AS drinks_break candidates upstream of the threat analysis.
+         strict drops break rows whose pause is substitution-caused before the
+         break/control comparison.
+    #16  penalties are excluded from the xT model but INCLUDED in the
+         momentum/threat-share analysis. strict drops penalty shots from the
+         threat events so the analysis matches the xT model's filter.
+    #17  the "open play only" claim is overstated: free-kick/corner shots and
+         set-piece passes are retained. strict restricts the threat analysis to
+         true open play (and see the corrected comment in xt_model.py).
+    #18  WC 2022 is called the "noise floor" but is neither the minimum firing
+         rate nor free of the same sub-stoppage contamination. strict reports a
+         contamination-adjusted floor and the true minimum firing rate alongside
+         the WC 2022 number.
+  All four default OFF. results.json gains a "strict" block only when strict.
 """
+import argparse
 import json
 import os
 
@@ -28,13 +49,20 @@ EPS = 1.0 / 60.0
 HOT_CORE = ["ISL 2021-22", "AFCON 2023", "Copa America 2024", "WWC 2019"]
 
 
-def classify(s):
+def classify(s, strict=False):
+    """Label a stoppage. strict (AUDIT-DRAFT #15, opt-in) reorders the rules so
+    a substitution-caused pause is labelled "substitution" BEFORE it can fall
+    into the drinks_break window. Default (strict=False) keeps the committed
+    order: a sub during the 25-32' window is still counted as a drinks_break,
+    which is the circularity the audit flags. Validate on the data box."""
     if s.goal_before:
         return "goal_restart"
     if s.injury:
         return "injury"
     if s.card_near:
         return "card_or_var"
+    if strict and s.subs_in > 0:
+        return "substitution"
     if s.gap_sec >= 90 and 25 <= s.half_min < 32 and s.period <= 2:
         return "drinks_break"
     if s.subs_in > 0:
@@ -48,16 +76,41 @@ def cell(x, y):
     return cx, cy
 
 
-def main():
+def main(strict=False):
+    """Run the cooling-break analysis.
+
+    strict (AUDIT-DRAFT, opt-in; default False keeps the committed headline
+    numbers): applies findings #15-#18. See module docstring for the full list
+    and the validation command. With strict=False every existing output is
+    byte-for-byte unchanged; with strict=True a "strict" block is added to
+    results.json and a few extra console lines are printed.
+    """
     stop = pd.read_csv(os.path.join(ROOT, "stoppages.csv"))
     matches = pd.read_csv(os.path.join(ROOT, "matches.csv")).set_index("match_id")
     admin = pd.read_csv(os.path.join(ROOT, "admin.csv"))
     moves = pd.read_csv(os.path.join(ROOT, "moves.csv"))
     shots = pd.read_csv(os.path.join(ROOT, "shots.csv"))
     shots = shots[shots.period <= 4]
+    # AUDIT-DRAFT #16/#17 (opt-in; validate on the data box): penalties are
+    # excluded from the xT model (xt_model.py: pen == 0) but were INCLUDED in
+    # the momentum/threat-share analysis, which only filtered period <= 4.
+    # strict drops penalty shots so the analysis matches the model. If a
+    # "set_piece"/"play_pattern" column exists, strict also restricts to true
+    # open play (#17); otherwise it falls back to the penalty-only filter and
+    # records that the open-play restriction was unavailable.
+    strict_notes = {}
+    if strict:
+        if "pen" in shots.columns:
+            before = len(shots)
+            shots = shots[shots.pen == 0]
+            strict_notes["penalty_shots_dropped"] = int(before - len(shots))
+        else:
+            strict_notes["penalty_shots_dropped"] = "no 'pen' column in shots.csv"
     xt = np.load(os.path.join(ROOT, "xt_grid.npy"))
 
-    stop["label"] = stop.apply(classify, axis=1)
+    # AUDIT-DRAFT #15 (opt-in): classify with strict reordering so sub-caused
+    # pauses do not enter the drinks_break / break set.
+    stop["label"] = stop.apply(lambda s: classify(s, strict=strict), axis=1)
     det = stop[stop.label == "drinks_break"]
     det_by_t = det.groupby("tournament").size()
     nmatches = matches.groupby("tournament").size()
@@ -76,7 +129,66 @@ def main():
     expected_bg = wc22_fp_rate * n_hot_matches
     purity = (len(breaks) - expected_bg) / len(breaks)
 
+    # AUDIT-DRAFT #18 (opt-in; validate on the data box): WC 2022 is treated as
+    # the "false positive floor", but it is (a) not the minimum firing rate
+    # across non-core tournaments and (b) contaminated by the same sub-stoppage
+    # mislabelling as the break set. Report a true minimum firing rate and, when
+    # the substitution column is present, a contamination-adjusted floor that
+    # removes detections whose pause was substitution-caused. Headline purity
+    # above is left on the WC 2022 number; the strict block reports alternatives.
+    if strict:
+        per_match_rate = {t: float(det_by_t.get(t, 0) / nmatches[t]) for t in nmatches.index}
+        noncore = {t: r for t, r in per_match_rate.items() if t not in HOT_CORE}
+        true_min_t = min(noncore, key=noncore.get) if noncore else None
+        # contamination-adjusted WC 2022 floor: drinks_break detections in WC
+        # 2022 that coincide with a substitution in the same stoppage.
+        wc = det[det.tournament == "WC 2022"]
+        wc_sub = int((wc.subs_in > 0).sum()) if "subs_in" in wc.columns else 0
+        wc_clean = max(0, len(wc) - wc_sub)
+        wc22_clean_rate = wc_clean / nmatches["WC 2022"]
+        expected_bg_clean = wc22_clean_rate * n_hot_matches
+        strict_notes["floor"] = {
+            "wc22_fp_per_match": float(wc22_fp_rate),
+            "wc22_contamination_adjusted_per_match": float(wc22_clean_rate),
+            "wc22_sub_contaminated_detections": wc_sub,
+            "true_min_tournament": true_min_t,
+            "true_min_per_match": float(noncore[true_min_t]) if true_min_t else None,
+            "purity_on_wc22_floor": float(purity),
+            "purity_on_contamination_adjusted_floor":
+                float((len(breaks) - expected_bg_clean) / len(breaks)) if len(breaks) else None,
+            "purity_on_true_min_floor":
+                float((len(breaks) - noncore[true_min_t] * n_hot_matches) / len(breaks))
+                if (true_min_t and len(breaks)) else None,
+        }
+
     # threat events: positive xT deltas of completed moves, plus shot xG
+    # AUDIT-DRAFT #17 (opt-in): in strict mode restrict moves AND shots to true
+    # open play when a play-pattern/set-piece column is available, so the threat
+    # analysis lives up to the "open play only" claim. Recognised columns:
+    # "open_play" (1 = open play), "set_piece" (1 = set piece), or
+    # "play_pattern" (string "Regular Play"). Falls back to no restriction (and
+    # records that) if none is present.
+    if strict:
+        def open_play_mask(d):
+            if "open_play" in d.columns:
+                return d.open_play == 1
+            if "set_piece" in d.columns:
+                return d.set_piece == 0
+            if "play_pattern" in d.columns:
+                return d.play_pattern == "Regular Play"
+            return None
+        mm = open_play_mask(moves)
+        sm = open_play_mask(shots)
+        if mm is not None:
+            moves = moves[mm]
+            strict_notes["moves_open_play_only"] = True
+        else:
+            strict_notes["moves_open_play_only"] = "no play-pattern column in moves.csv"
+        if sm is not None:
+            shots = shots[sm]
+            strict_notes["shots_open_play_only"] = True
+        else:
+            strict_notes["shots_open_play_only"] = "no play-pattern column in shots.csv"
     ok = moves[moves.ok == 1]
     sx, sy = cell(ok.sx, ok.sy)
     ex, ey = cell(ok.ex, ok.ey)
@@ -229,6 +341,12 @@ def main():
         "ci_flip_std": cluster_boot("flip"),
         "ci_swing_std": cluster_boot("swing"),
     }
+    # AUDIT-DRAFT (opt-in): only emit the strict block when strict is on, so the
+    # default results.json is byte-for-byte unchanged.
+    if strict:
+        res["strict"] = strict_notes
+        print("\n== AUDIT-DRAFT strict mode ON (#15-#18) ==")
+        print(json.dumps(strict_notes, indent=2))
     with open(os.path.join(ROOT, "results.json"), "w") as f:
         json.dump(res, f, indent=2)
     print(json.dumps(res, indent=2))
@@ -248,4 +366,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # AUDIT-DRAFT (opt-in): --strict enables findings #15-#18. Default OFF.
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--strict", action="store_true",
+        help="AUDIT-DRAFT opt-in: apply audit fixes #15-#18 (drop sub-caused "
+             "pauses from the break set, drop penalties + restrict to open "
+             "play in the threat analysis, and report a contamination-adjusted "
+             "/ true-minimum detector floor). Default OFF keeps committed "
+             "headline numbers unchanged.")
+    args = parser.parse_args()
+    main(strict=args.strict)

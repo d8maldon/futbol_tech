@@ -21,6 +21,24 @@ rating. (seed_ratings() below is the older narrow seed of ~314 elite-tournament
 matches; kept for reference, it mis-rated low-data teams like debutants.)
 
     python src/ratings.py        # seed, fit the draw models, rank, predict
+
+AUDIT-DRAFT #12 (opt-in neutral-venue handling; validate on the data box):
+the pooled pre-match logit is fit on a train window that is ~72% real home
+games, so its intercept absorbs the average home edge and at dr=0 returns a
+~9pp tilt to whichever team FIFA lists first -- spurious for the neutral-venue
+WC2026 fixtures. prematch_proba(..., neutral=True) cancels that tilt by
+mirroring (+dr vs H<->A-swapped -dr), and fit_prematch_logit(...,
+neutral_indicator=True) can instead carry the venue effect in an explicit
+feature. Both default OFF -> current output is byte-identical. To validate:
+
+    NEUTRAL_AUDIT=1 python src/backtest_history.py
+
+    (PowerShell:  $env:NEUTRAL_AUDIT=1; python src/backtest_history.py)
+
+Expected signal: the [NEUTRAL_AUDIT] block prints dr=0 asymmetry |H-A| ~0.09
+for the current scorer and ~0.0000 for neutral=True (symmetric P(home)=P(away)
+at equal ratings), and on the genuinely-neutral OOS subset the neutral scorer's
+log-loss / ECE(home) is <= the current scorer's.
 """
 import json
 import os
@@ -225,12 +243,33 @@ def fit_kappa(pairs):
     return round(float(best_k), 3), round(float(best_ll), 4)
 
 
-def fit_prematch_logit(pairs, n_matches):
-    """3-class multinomial logit on x=[dr/400], in winprob.py's JSON schema"""
+def fit_prematch_logit(pairs, n_matches, neutral_indicator=False):
+    """3-class multinomial logit on x=[dr/400], in winprob.py's JSON schema.
+
+    AUDIT-DRAFT #12 (opt-in; validate on the data box): with
+    neutral_indicator=True the model is fit on TWO features,
+    x=[dr/400, is_neutral], so the venue effect is carried by an explicit
+    indicator coefficient instead of leaking into the intercept (AUDIT fix
+    option (a)). This requires 3-tuple pairs (dr, outcome, neutral) where neutral
+    is 0/1; build them in walk_forward / seed_history by appending r.neutral.
+    The resulting model carries features=["dr_over_400","is_neutral"]; to score a
+    neutral fixture, prematch_proba's mirror path (neutral=True) still gives the
+    venue-symmetric answer, and a true-host fixture is scored with is_neutral=0.
+
+    Defaults False -> single-feature model byte-identical to the committed
+    prematch_model.json (intercept of shape used by the live scorer). Accepts the
+    existing 2-tuple pairs unchanged in that default path.
+    """
     from sklearn.linear_model import LogisticRegression
     from sklearn.metrics import log_loss
-    X = np.array([[d / 400.0] for d, _ in pairs])
-    y = np.array([o for _, o in pairs])
+    if neutral_indicator:
+        # pairs are (dr, outcome, neutral 0/1); venue gets its own coefficient
+        X = np.array([[d / 400.0, float(nv)] for d, _, nv in pairs])
+        features = ["dr_over_400", "is_neutral"]
+    else:
+        X = np.array([[d / 400.0] for d, _, *_ in pairs])
+        features = ["dr_over_400"]
+    y = np.array([p[1] for p in pairs])
     clf = LogisticRegression(max_iter=5000, C=1.0)
     clf.fit(X, y)
     ll = round(float(log_loss(y, clf.predict_proba(X))), 4)
@@ -238,7 +277,7 @@ def fit_prematch_logit(pairs, n_matches):
         "classes": list(clf.classes_),
         "coef": clf.coef_.tolist(),
         "intercept": clf.intercept_.tolist(),
-        "features": ["dr_over_400"],
+        "features": features,
         "n_matches": int(n_matches),
         "n_samples": int(X.shape[0]),
     }, ll
@@ -252,12 +291,45 @@ def load_prematch_model():
     return None
 
 
-def prematch_proba(dr, model=None, kappa=1.0):
-    """P(H/D/A) for a rating gap dr; logit if a model is given, else Davidson"""
+def prematch_proba(dr, model=None, kappa=1.0, neutral=False):
+    """P(H/D/A) for a rating gap dr; logit if a model is given, else Davidson.
+
+    AUDIT-DRAFT #12: pass neutral=True for a true neutral-venue fixture (every
+    WC2026 group game except a true host on home soil). The pooled logit is fit
+    on a train window that is ~72% real home games, so its intercept absorbs the
+    average home edge: at dr=0 the production model returns H~0.404 / A~0.311, a
+    ~9pp "phantom" tilt to whichever team FIFA happens to list first. On a
+    neutral pitch there is no home edge, so that listing-order bias is spurious.
+
+    neutral=True removes it WITHOUT re-fitting, by symmetrising the venue term:
+    we average the model's prediction at +dr with its H<->A-swapped prediction
+    at -dr. This cancels the intercept's home/away asymmetry while preserving the
+    rating-gap signal and the draw mass, so at equal ratings (dr=0) it yields
+    P(home) == P(away) exactly. For the Davidson fallback (already symmetric at
+    dr=0) and the only-thing-that-matters production logit, this is the venue
+    fix. Defaults False -> byte-identical to current behaviour. (opt-in; the
+    maintainer should validate OOS log-loss / ECE on the data box -- see the
+    neutral_only re-fit path in fit_prematch_logit and the command at the bottom
+    of this module's docstring section in backtest_history.py.)
+    """
     if model is not None:
-        x = np.array([dr / 400.0])
-        z = np.array(model["coef"]) @ x + np.array(model["intercept"])
-        return dict(zip(model["classes"], softmax(z)))
+        def _logit(d):
+            x = np.array([d / 400.0])
+            z = np.array(model["coef"]) @ x + np.array(model["intercept"])
+            return dict(zip(model["classes"], softmax(z)))
+        p = _logit(dr)
+        if neutral:
+            # mirror: swap the listed teams (dr -> -dr) so "home" becomes "away",
+            # then read that mirrored game's A as this game's H, and average. The
+            # venue-driven intercept asymmetry cancels; the gap signal survives.
+            m = _logit(-dr)
+            sym = {"H": 0.5 * (p["H"] + m["A"]),
+                   "D": 0.5 * (p["D"] + m["D"]),
+                   "A": 0.5 * (p["A"] + m["H"])}
+            tot = sym["H"] + sym["D"] + sym["A"]
+            return {k: v / tot for k, v in sym.items()}
+        return p
+    # Davidson is already venue-symmetric at dr=0; neutral is a no-op here.
     return davidson_proba(dr, kappa)
 
 

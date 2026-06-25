@@ -63,8 +63,14 @@ def load():
     return df.sort_values("date", kind="mergesort")
 
 
-def walk_forward(df):
-    """date-order Elo; record (dr, outcome, year) BEFORE each update (leak-free)"""
+def walk_forward(df, with_neutral=False):
+    """date-order Elo; record (dr, outcome, year) BEFORE each update (leak-free).
+
+    AUDIT-DRAFT #12 (opt-in; validate on the data box): with with_neutral=True
+    each pair becomes (dr, outcome, year, neutral 0/1) so the neutral-handling
+    re-fit/scoring path can isolate genuinely-neutral fixtures. Defaults False ->
+    4-tuple is never produced and the standard run is byte-identical.
+    """
     elo, pairs = {}, []
     for r in df.itertuples():
         rh = elo.get(r.home_team, rt.BASE)
@@ -73,7 +79,10 @@ def walk_forward(df):
         dr = (rh + ha) - ra
         hs, as_ = int(r.home_score), int(r.away_score)
         o = "H" if hs > as_ else ("A" if as_ > hs else "D")
-        pairs.append((dr, o, r.year))
+        if with_neutral:
+            pairs.append((dr, o, r.year, int(bool(r.neutral))))
+        else:
+            pairs.append((dr, o, r.year))
         elo[r.home_team], elo[r.away_team] = rt.elo_update(rh, ra, hs, as_, k_for(r.tournament), ha)
     return pairs
 
@@ -113,6 +122,44 @@ def main():
         ll.mean(), lo, hi, bll.mean(), ull.mean()))
     print("  Brier {:.4f} | RPS {:.4f} | accuracy {:.1%}".format(br.mean(), rp.mean(), acc.mean()))
     print("  (lower log loss = better; model should beat climatology < uniform = {:.4f})".format(np.log(3)))
+
+    # AUDIT-DRAFT #12 (opt-in; validate on the data box): set NEUTRAL_AUDIT=1 to
+    # quantify the neutral-venue fix. We (1) confirm the venue-symmetric scorer
+    # gives P(home)==P(away) at dr=0, and (2) re-score the genuinely-neutral OOS
+    # subset both with the current scorer and with prematch_proba(neutral=True),
+    # reporting log-loss + ECE for each. On a neutral pitch the symmetric path
+    # should match or beat the asymmetric one. Defaults OFF -> run is unchanged.
+    if os.environ.get("NEUTRAL_AUDIT") == "1":
+        p0 = rt.prematch_proba(0.0, model)
+        p0n = rt.prematch_proba(0.0, model, neutral=True)
+        print("\n[NEUTRAL_AUDIT] dr=0 current  H {:.4f} D {:.4f} A {:.4f}  (asymmetry |H-A|={:.4f})".format(
+            p0["H"], p0["D"], p0["A"], abs(p0["H"] - p0["A"])))
+        print("[NEUTRAL_AUDIT] dr=0 neutral  H {:.4f} D {:.4f} A {:.4f}  (asymmetry |H-A|={:.4f}  <- expect ~0)".format(
+            p0n["H"], p0n["D"], p0n["A"], abs(p0n["H"] - p0n["A"])))
+
+        npairs = walk_forward(df, with_neutral=True)
+        ntest = [(dr, o) for dr, o, y, nv in npairs if y >= TEST_FROM and nv == 1]
+        if ntest:
+            def ece_home(predict, data):
+                ph_ = np.array([predict(dr)["H"] for dr, _ in data])
+                yh_ = np.array([o == "H" for _, o in data], float)
+                edges_ = np.linspace(0, 1, 11)
+                e = 0.0
+                for i in range(10):
+                    sel = (ph_ >= edges_[i]) & (ph_ < edges_[i + 1]) if i < 9 else (ph_ >= edges_[i]) & (ph_ <= 1.0)
+                    n_ = int(sel.sum())
+                    if n_ < 20:
+                        continue
+                    e += n_ / len(data) * abs(ph_[sel].mean() - yh_[sel].mean())
+                return e
+            cur_ll, _, _, cur_acc = score(ntest, lambda dr: rt.prematch_proba(dr, model))
+            neu_ll, _, _, neu_acc = score(ntest, lambda dr: rt.prematch_proba(dr, model, neutral=True))
+            print("[NEUTRAL_AUDIT] neutral-only OOS subset n={}".format(len(ntest)))
+            print("[NEUTRAL_AUDIT]   current  log-loss {:.4f}  acc {:.1%}  ECE(home) {:.3f}".format(
+                cur_ll.mean(), cur_acc.mean(), ece_home(lambda dr: rt.prematch_proba(dr, model), ntest)))
+            print("[NEUTRAL_AUDIT]   neutral  log-loss {:.4f}  acc {:.1%}  ECE(home) {:.3f}  <- expect <= current".format(
+                neu_ll.mean(), neu_acc.mean(),
+                ece_home(lambda dr: rt.prematch_proba(dr, model, neutral=True), ntest)))
 
     # reliability curve on P(home win), 10 bins, with observed rate + Wilson CI
     ph = np.array([p_model(dr)["H"] for dr, _ in test])

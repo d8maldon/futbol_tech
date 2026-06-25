@@ -22,6 +22,17 @@ the precise slotting; the per-team "reach round of 16" number is the fully
 rigorous one.
 
     python src/montecarlo.py        # N sims -> title odds + a figure
+
+AUDIT-DRAFT #13 (accuracy; opt-in; validate on the data box): the default
+knockout resolver is a RAW Elo coin-flip (`expected(dr)`), which silently buries
+the draw and is NOT the Davidson/multinomial draw model that ratings.py fits and
+validates out-of-sample (the README calls this "the very engine validated
+out-of-sample"). The `--draw-model` flag below resolves knockouts from those
+validated P(H/D/A) probabilities instead, splitting the draw mass to a decisive
+winner the way an actual knockout would (extra time / penalties favour the side
+already more likely to win in regulation). It DEFAULTS OFF so the committed
+sim output and the 29 passing tests are unchanged. The Poisson score sampler is
+deliberately retained for the group stage, where GD/GF are real tiebreakers.
 """
 import os
 
@@ -33,7 +44,8 @@ import pandas as pd
 
 from fixtures import load_fixtures, played
 from ratings import (BASE, HOME_ADV, HOSTS_2026, K_WORLD_CUP, PROVISIONAL,
-                     build_normalizer, elo_update, expected, seed_history)
+                     build_normalizer, elo_update, expected, load_prematch_model,
+                     prematch_proba, seed_history)
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 OUT = os.path.join(ROOT, "wc2026")
@@ -128,7 +140,9 @@ def rank_group(teams, results, rt):
     return order, standings
 
 
-def sim_once(blocks, rt, rng):
+def sim_once(blocks, rt, rng, draw_model=None):
+    # AUDIT-DRAFT #13: `draw_model` is forwarded ONLY to the knockout resolver;
+    # the group stage keeps the Poisson sampler (GD/GF tiebreakers are real).
     winners, runners, thirds = {}, {}, []   # thirds: (team, group, pts, gd, gf)
     for g, b in blocks.items():
         results = []
@@ -152,7 +166,7 @@ def sim_once(blocks, rt, rng):
         | {t[0] for t in top_thirds}
 
     bracket = build_bracket(winners, runners, top_thirds)
-    champion = sim_knockout(bracket, rt, rng)
+    champion = sim_knockout(bracket, rt, rng, draw_model)
     return advance_r16, champion
 
 
@@ -186,7 +200,35 @@ def build_bracket(winners, runners, top_thirds):
     return slots
 
 
-def sim_knockout(slots, rt, rng):
+def advance_prob(dr, draw_model):
+    """P(the home/first side advances a knockout tie) for rating gap `dr`.
+
+    Default (draw_model is None): the raw Elo win-expectancy `expected(dr)` --
+    the current behaviour, unchanged.
+
+    AUDIT-DRAFT #13 (opt-in): when `draw_model` is supplied, use the VALIDATED
+    pre-match draw model from ratings.py to get P(H/D/A), then resolve the tie to
+    a decisive winner by splitting the draw mass in proportion to the two sides'
+    win probabilities -- i.e. P(advance) = pH + pD * pH/(pH+pA). This is the
+    standard "conditional-on-a-result" reduction: extra time / penalties land in
+    favour of whoever was already more likely to win in regulation, rather than
+    a 50/50 on every draw. `draw_model` is the dict from load_prematch_model()
+    (the multinomial logit); if it is the sentinel "davidson", the closed-form
+    Davidson fallback is used.
+    """
+    if draw_model is None:
+        return expected(dr)
+    model = None if draw_model == "davidson" else draw_model
+    p = prematch_proba(dr, model)
+    ph, pa = p["H"], p["A"]
+    denom = ph + pa
+    if denom <= 0.0:
+        return 0.5
+    return ph + p["D"] * (ph / denom)
+
+
+def sim_knockout(slots, rt, rng, draw_model=None):
+    # AUDIT-DRAFT #13: `draw_model` defaults None -> identical raw-Elo coin flip.
     teams = slots
     while len(teams) > 1:
         nxt = []
@@ -195,7 +237,7 @@ def sim_knockout(slots, rt, rng):
             dr = rt.get(h, PROVISIONAL) - rt.get(a, PROVISIONAL)
             dr += HOME_ADV if h in HOSTS_2026 else 0.0
             dr -= HOME_ADV if a in HOSTS_2026 else 0.0
-            nxt.append(h if rng.random() < expected(dr) else a)
+            nxt.append(h if rng.random() < advance_prob(dr, draw_model) else a)
         teams = nxt
     return teams[0]
 
@@ -238,18 +280,40 @@ def render(table, n, out):
     plt.close(fig)
 
 
-def main():
+def resolve_draw_model(mode):
+    """Map a --draw-model CLI value to the `draw_model` argument sim_once wants.
+
+    AUDIT-DRAFT #13 (opt-in): 'off' (default) -> None -> raw-Elo coin flip, the
+    committed behaviour. 'logit' -> the validated multinomial draw model
+    (prematch_model.json); falls back to Davidson if that file is absent.
+    'davidson' -> force the closed-form Davidson fallback.
+    """
+    if mode == "off":
+        return None, "raw-Elo coin flip (expected(dr)) [default]"
+    if mode == "davidson":
+        return "davidson", "validated Davidson closed-form draw model"
+    # mode == "logit"
+    model = load_prematch_model()
+    if model is None:
+        return "davidson", ("prematch_model.json absent -> Davidson fallback "
+                            "(run `python src/ratings.py` to fit the logit)")
+    return model, "validated multinomial-logit draw model (prematch_model.json)"
+
+
+def main(draw_mode="off"):
     os.makedirs(FIG, exist_ok=True)
     rt, df, _ = current_ratings()
     blocks = group_blocks(df)
+    draw_model, draw_desc = resolve_draw_model(draw_mode)
     print("groups: {}  teams: {}".format(
         len(blocks), sum(len(b["teams"]) for b in blocks.values())))
+    print("knockout resolver: {}".format(draw_desc))
 
     rng = np.random.default_rng(7)
     champ = {}
     r16 = {}
     for _ in range(N_SIMS):
-        adv, c = sim_once(blocks, rt, rng)
+        adv, c = sim_once(blocks, rt, rng, draw_model)
         champ[c] = champ.get(c, 0) + 1
         for t in adv:
             r16[t] = r16.get(t, 0) + 1
@@ -261,15 +325,36 @@ def main():
         "reach_r16": [100.0 * r16.get(t, 0) / N_SIMS for t in teams],
         "rating": [round(rt.get(t, PROVISIONAL)) for t in teams],
     }).sort_values("champion", ascending=False).reset_index(drop=True)
-    table.to_csv(os.path.join(OUT, "sim_probs.csv"), index=False)
+    # AUDIT-DRAFT #13: default ('off') still writes the committed sim_probs.csv;
+    # the opt-in modes write a SEPARATE file so the maintainer can diff them and
+    # nothing committed is clobbered while validating.
+    out_csv = "sim_probs.csv" if draw_mode == "off" \
+        else "sim_probs_drawmodel_{}.csv".format(draw_mode)
+    table.to_csv(os.path.join(OUT, out_csv), index=False)
 
     print("\ntitle odds (top 12):")
     for _, r in table.head(12).iterrows():
         print("  {:24s} win {:5.1f}%   R16 {:5.1f}%   (Elo {})".format(
             r["team"], r["champion"], r["reach_r16"], int(r["rating"])))
-    render(table, N_SIMS, os.path.join(FIG, "wc2026_champion.png"))
-    print("\nwrote wc2026/sim_probs.csv + figures/wc2026_champion.png")
+    # default mode keeps writing the committed figure; opt-in modes write their
+    # own figure file so the canonical PNG is not overwritten during validation.
+    fig_name = "wc2026_champion.png" if draw_mode == "off" \
+        else "wc2026_champion_drawmodel_{}.png".format(draw_mode)
+    render(table, N_SIMS, os.path.join(FIG, fig_name))
+    print("\nwrote wc2026/{} + figures/{}".format(out_csv, fig_name))
 
 
 if __name__ == "__main__":
-    main()
+    # AUDIT-DRAFT #13: --draw-model is opt-in and defaults to 'off' (the exact
+    # current behaviour). 'logit'/'davidson' resolve knockouts from the validated
+    # draw model instead of the raw Elo coin flip.
+    import argparse
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--draw-model", dest="draw_mode", default="off",
+                    choices=["off", "logit", "davidson"],
+                    help="knockout resolver: 'off' (default, raw-Elo coin flip, "
+                         "unchanged) or the validated 'logit'/'davidson' draw "
+                         "model (AUDIT-DRAFT #13, opt-in)")
+    args = ap.parse_args()
+    main(draw_mode=args.draw_mode)

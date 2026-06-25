@@ -39,7 +39,7 @@ _2026-06-25. Multi-agent audit: six auditors (predictor, cooling-break thesis, C
 - CV-accuracy disclosure (#2 / #3 / #19) -> README caveat added (12 m gate + GT-selected flip).
 - Regression cluster (#1 and the untested new code) -> 16 new offline tests: `test_match_data.py`, `test_dashboard_themes.py`, `test_analyst.py`, `test_montecarlo.py`.
 
-**Deferred - needs OOS re-validation on the 49k dataset** (NOT blind-edited: changing a validated model could silently break the OOS claim):
+**Deferred - needs OOS re-validation on the 49k dataset** (NOT blind-edited: changing a validated model could silently break the OOS claim). Now **drafted as opt-in switches** (defaults unchanged) with a validation command each - see [`DRAFTS.md`](DRAFTS.md):
 - #12 neutral-venue home-field intercept in `ratings.py`.
 - #13 champion Monte-Carlo not using the validated draw model.
 - #15 / #16 / #17 / #18 cooling-break statistical refinements (sub-stoppage circularity, penalties in the momentum analysis, "open play only" scope, noise-floor contamination) - the code changes need `analyze.py` re-run over the StatsBomb data.

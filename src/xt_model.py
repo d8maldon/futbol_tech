@@ -24,8 +24,12 @@ def cell(x, y):
 def main():
     moves = pd.read_csv(os.path.join(ROOT, "moves.csv"))
     shots = pd.read_csv(os.path.join(ROOT, "shots.csv")).dropna(subset=["x", "y"])
-    # open play only: shootout kicks and in-game penalties say nothing about
-    # the value of reaching the penalty-spot cell in open play
+    # AUDIT-DRAFT #17: the "open play only" claim is overstated. This filter
+    # drops shootout kicks and in-game penalties (pen == 0), but free-kick and
+    # corner shots are STILL retained here -- so the xT grid is "non-penalty,
+    # non-shootout", not strictly open play. analyze.py's optional --strict mode
+    # restricts the momentum/threat analysis to true open play; the xT model
+    # itself is left unchanged (committed model output must not move).
     shots = shots[(shots.period <= 4) & (shots.pen == 0)]
     ncells = NX * NY
 
