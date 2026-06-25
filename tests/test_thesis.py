@@ -11,6 +11,7 @@ import sys
 from types import SimpleNamespace
 
 import numpy as np
+import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
@@ -56,7 +57,10 @@ def test_cell_stays_in_bounds():
 
 
 def test_xt_surface_is_sane():
-    grid = np.load(os.path.join(PROC, "xt_grid.npy"))
+    path = os.path.join(PROC, "xt_grid.npy")
+    if not os.path.exists(path):
+        pytest.skip("xt_grid.npy absent (data/ is gitignored); run src/xt_model.py to regenerate")
+    grid = np.load(path)
     assert grid.shape == (NX, NY)
     assert np.isfinite(grid).all()
     assert (grid >= 0).all() and (grid <= 1).all()       # it is a probability
@@ -67,6 +71,9 @@ def test_xt_surface_is_sane():
 if __name__ == "__main__":
     fns = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for fn in fns:
-        fn()
-        print("ok", fn.__name__)
-    print("all {} tests passed".format(len(fns)))
+        try:
+            fn()
+            print("ok", fn.__name__)
+        except pytest.skip.Exception as e:
+            print("skip", fn.__name__, "-", e)
+    print("done ({} checks)".format(len(fns)))

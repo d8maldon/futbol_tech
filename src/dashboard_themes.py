@@ -35,24 +35,6 @@ def names():
     return list(_REG)
 
 
-# ---- shared pitch-control surface (proximity softmax, masked to visibility) ----
-_GX, _GY = np.meshgrid(np.linspace(0, PL, 92), np.linspace(0, PW, 62))
-_CELLS = np.stack([_GX.ravel(), _GY.ravel()], 1)
-
-
-def control_surface(tracks, tau=6.0, see=26.0):
-    """(control[0..1, team0 owns=1], visible_mask) over the pitch grid, or None.
-    `tracks` rows are [px, py, team, ...] in real metres (already y-flipped if desired)."""
-    if len(tracks) < 2:
-        return None
-    Pp = np.array([[t[0], t[1]] for t in tracks]); tm = np.array([t[2] for t in tracks])
-    d = np.linalg.norm(_CELLS[:, None, :] - Pp[None, :, :], axis=2)
-    infl = lambda sel: np.exp(-d[:, sel].min(1) / tau) if sel.any() else np.zeros(len(_CELLS))
-    ia, idf = infl(tm == 0), infl(tm == 1)
-    ctrl = np.where(ia + idf > 0, ia / (ia + idf + 1e-9), 0.5)
-    return ctrl.reshape(_GX.shape), (d.min(1) < see).reshape(_GX.shape)
-
-
 def draw_pitch(ax, line="#ffffff", lw=1.1, face="#16341f", alpha=0.5, goals=True, equal=True):
     """COMPLETE real-geometry FIFA 105x68 m pitch (IFAB markings): outline, halfway,
     centre circle + spot, both penalty boxes (40.32x16.5) + 6-yard boxes (18.32x5.5),

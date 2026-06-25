@@ -156,7 +156,7 @@ def _draw_winprob(bg, ax, m, ti):
     pxg = float(m["wp_xg"][ti])
     bar_y, bar_h = 0.30, 0.30
     disp = [round(v * 100) for v in (ph, pd_, pa)]
-    widths = [max(v, 0.012) for v in (ph, pd_, pa)]
+    widths = [max(v, 0.006) for v in (ph, pd_, pa)]   # tiny sliver only; preserves labelled %
     widths = [w / sum(widths) for w in widths]
     cols = [CYAN_HX, "#7a8694", ORANGE_HX]
     x0 = 0.0
@@ -342,9 +342,9 @@ def _draw_ticker(bg, ax, m, ti):
         if e["type"] == "Goal" and e.get("score"):
             det = "{}-{}".format(e["score"][0], e["score"][1])
         elif e["type"] == "VAR":
-            det = "OFFSIDE"
+            det = "OFFSIDE" if "offside" in (e.get("note") or "").lower() else "REVIEW"
         elif e["type"] == "Card":
-            det = "YELLOW"
+            det = (e.get("card") or "BOOKING").upper().replace(" CARD", "")
         else:
             det = "ON"
         ax.text(0.985, yc, det, color=team_col if e["type"] == "Goal" else chip_col, fontsize=9, family=MONO,
@@ -387,8 +387,8 @@ def _draw_ratings(bg, ax, m):
 def _draw_footer(bg):
     bg.plot([28, W - 28], [H - 14 - 6, H - 14 - 6], color=RULE, lw=1.0, zorder=3)
     bg.text(28, H - 8, "PITCHWALL", color=ACCENT, fontsize=8.5, family=SANS, fontweight="bold", va="bottom", ha="left", zorder=5)
-    foot = ("Broadcast CV ~5 m zone-grade  ·  win-prob OOS log-loss 0.82  ·  "
-            "World-Football-Elo predictor  ·  pitch-control proximity softmax  ·  futbol_tech")
+    foot = ("Broadcast CV ~5 m zone-grade (12 m gate)  ·  Elo predictor OOS 0.86  ·  "
+            "in-game win-prob: score-anchored  ·  Voronoi pitch control  ·  futbol_tech")
     bg.text(W - 28, H - 8, foot, color=TXT_MUT, fontsize=8, family=MONO, va="bottom", ha="right", zorder=5)
 
 

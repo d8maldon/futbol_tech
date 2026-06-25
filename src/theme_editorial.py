@@ -115,8 +115,8 @@ def _draw_header(root, m, ti):
     sx = W - MARGIN
     root.text(sx, 36, "LIVE", color="#e85a4a", fontsize=11, family=SANS, weight="bold", va="center", ha="right", zorder=10)
     root.add_patch(Circle((sx - 56, 33), 4.5, color="#e85a4a", zorder=10))
-    root.text(sx, 80, "ARG  {} - {}  ALG".format(sc_h, sc_a), color=PAPER, fontsize=23, family=SERIF,
-              weight="bold", va="center", ha="right", zorder=10)
+    root.text(sx, 80, "{}  {} - {}  {}".format(m["home"][:3].upper(), sc_h, sc_a, m["away"][:3].upper()),
+              color=PAPER, fontsize=23, family=SERIF, weight="bold", va="center", ha="right", zorder=10)
     mdx = sx - 318
     root.add_patch(Rectangle((mdx + 10, 62), 1.2, 34, color="#4a463f", zorder=10))
     root.text(mdx, 80, "{}'".format(ti), color="#e8a23a", fontsize=23, family=SERIF, weight="bold",
@@ -131,7 +131,7 @@ def _draw_winprob(root, m, ti):
     bar_y = iy + 46; bar_h = 34
     seg = [(ph, ARGc), (pd, INK3), (pa, ALGc)]
     root.text(ix, iy + 12, "WHO WINS FROM HERE", color=INK3, fontsize=10, family=SANS, weight="bold", va="center", ha="left")
-    floor = 0.012
+    floor = 0.006   # tiny visible sliver only; small enough not to distort the labelled %
     sizes = [max(f, floor if f > 0 else 0) for f, _ in seg]
     ssum = sum(sizes); sizes = [s / ssum for s in sizes]
     xrun = ix
@@ -337,7 +337,7 @@ def _draw_ticker(root, m, ti):
 
 def _draw_footer(root):
     root.add_patch(Rectangle((0, H - 30), W, 30, color=INK, zorder=8))
-    root.text(MARGIN, H - 15, "Broadcast CV ~5 m zone-grade  ·  win-prob OOS log-loss 0.82  ·  World-Football-Elo predictor",
+    root.text(MARGIN, H - 15, "Broadcast CV ~5 m zone-grade (12 m gate)  ·  World-Football-Elo predictor OOS 0.86  ·  in-game win-prob: score-anchored Skellam",
               color="#b7b0a2", fontsize=10, family=SANS, weight="bold", va="center", ha="left", zorder=9)
     root.text(W - MARGIN, H - 15, "THE PRESSING LINES  ·  futbol_tech", color="#e8a23a", fontsize=10,
               family=SANS, weight="bold", va="center", ha="right", zorder=9)

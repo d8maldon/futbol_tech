@@ -24,8 +24,9 @@ import time
 import numpy as np
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
-DEFAULT_WEIGHTS = os.path.join(
-    ROOT, "..", "Image-Processing", "Object Detect", "yolov8n.pt")
+# portable COCO fallback: a local copy under data/models/, else ultralytics auto-fetch
+_LOCAL_COCO = os.path.join(ROOT, "data", "models", "yolov8n.pt")
+DEFAULT_WEIGHTS = _LOCAL_COCO if os.path.exists(_LOCAL_COCO) else "yolov8n.pt"
 PERSON, SPORTS_BALL = 0, 32
 PLAYER_BGR = (255, 155, 94)
 BALL_BGR = (63, 210, 255)

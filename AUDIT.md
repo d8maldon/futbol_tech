@@ -21,6 +21,28 @@ _2026-06-25. Multi-agent audit: six auditors (predictor, cooling-break thesis, C
 4. **Backfill the offline tests** (high #1; med regression cluster). match_data win-prob/score core, the Monte-Carlo sim engine, nalyst.analyze, and the --theme dispatch all run with no data/ and gate headline output - add pytest guards so a silent regression is caught.
 5. **Predictor honesty** (med #12, #13). Neutral-venue WC fixtures inherit a home-field intercept (~9pp bias to the listed home team); the champion Monte-Carlo does not use the OOS-validated draw model it is advertised as.
 
+## Resolution status (2026-06-25)
+
+**Fixed in this pass** (all verified offline; test suite green at 29 passed / 1 skipped, up from 14 tests):
+- #4 win-prob mislabel -> relabelled all theme footers + the legacy title; the bar is now honestly described as a score-anchored in-game curve, and the OOS figure is attributed to the Elo predictor (0.86), not the unshown winprob model. (Kept the Skellam curve rather than wiring `winprob_model.json`: that model has no team identity, so it would be *worse* for neutral-venue WC fixtures.)
+- #5 hardcoded YOLO path -> portable resolution (`data/models/` or ultralytics auto-fetch) in `broadcast_track.py` + `live_screen.py`.
+- #6 detector download -> documented in `broadcast_track.py` + README.
+- #7 xt test -> skips cleanly when the gitignored grid is absent.
+- #20 win-prob bar floor -> shrunk so segments match their labels.
+- #21 goals after minute 98 -> clamped into the per-minute grid.
+- #22 editorial scoreboard -> derives team codes from the fixture.
+- #23 telemetry ticker -> VAR / Card detail now data-driven.
+- #24 `live_dashboard` -> screen/camera labelled as scaffolds.
+- #25 README Reproduce -> dashboard / real-time / analyst pillar added.
+- #26 hardcoded match id -> `--match-id` override on `visual_ai`.
+- #29 dead `control_surface` -> removed.
+- CV-accuracy disclosure (#2 / #3 / #19) -> README caveat added (12 m gate + GT-selected flip).
+- Regression cluster (#1 and the untested new code) -> 16 new offline tests: `test_match_data.py`, `test_dashboard_themes.py`, `test_analyst.py`, `test_montecarlo.py`.
+
+**Deferred - needs OOS re-validation on the 49k dataset** (NOT blind-edited: changing a validated model could silently break the OOS claim):
+- #12 neutral-venue home-field intercept in `ratings.py`.
+- #13 champion Monte-Carlo not using the validated draw model.
+- #15 / #16 / #17 / #18 cooling-break statistical refinements (sub-stoppage circularity, penalties in the momentum analysis, "open play only" scope, noise-floor contamination) - the code changes need `analyze.py` re-run over the StatsBomb data.
 ## Critical (high)
 
 ### 1. match_data.py win-prob/score-timeline core is entirely untested yet runs fully offline

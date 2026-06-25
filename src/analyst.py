@@ -85,13 +85,13 @@ def analyze(m, ti, state=None, mem=None):
         if e["type"] == "Goal":
             sc = e.get("score", (sh, sa))
             out.append({"kind": "goal", "priority": 3, "panel": "xg",
-                        "text": "GOAL -{} ({}-{}). {} win prob now {:.0f}%".format(e["player"], sc[0], sc[1], H, wph * 100)})
+                        "text": "GOAL - {} ({}-{}). {} win prob now {:.0f}%".format(e["player"], sc[0], sc[1], H, wph * 100)})
         elif e["type"] == "VAR":
             out.append({"kind": "var", "priority": 3, "panel": "ticker",
-                        "text": "VAR -{} ({})".format(e["player"], e.get("note", "under review"))})
+                        "text": "VAR - {} ({})".format(e["player"], e.get("note", "under review"))})
         elif e["type"] == "Card":
             out.append({"kind": "card", "priority": 1, "panel": "ticker",
-                        "text": "Booking -{}".format(e["player"])})
+                        "text": "Booking - {}".format(e["player"])})
 
     last_wp = mem.get("last_wp", wph)
     if abs(wph - last_wp) >= 0.12 and ti - mem.get("last_swing", -99) >= 3:

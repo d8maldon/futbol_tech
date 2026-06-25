@@ -134,7 +134,7 @@ def load(mid):
     ph, pd, pa, sc_h, sc_a = [], [], [], [], []
     gi = 0
     for t in mins:
-        while gi < len(goals) and goals[gi]["min"] <= t:
+        while gi < len(goals) and min(goals[gi]["min"], 98) <= t:   # clamp 99'+ stoppage goals into the grid
             if goals[gi]["is_home"]:
                 hs += 1
             else:
@@ -144,8 +144,8 @@ def load(mid):
         ph.append(w); pd.append(dr); pa.append(l); sc_h.append(hs); sc_a.append(as_)
 
     # xG race: cumulative xG per team per minute
-    cum_h = np.array([sum(s["xg"] for s in shots if s["is_home"] and s["min"] <= t) for t in mins])
-    cum_a = np.array([sum(s["xg"] for s in shots if not s["is_home"] and s["min"] <= t) for t in mins])
+    cum_h = np.array([sum(s["xg"] for s in shots if s["is_home"] and min(s["min"], 98) <= t) for t in mins])
+    cum_a = np.array([sum(s["xg"] for s in shots if not s["is_home"] and min(s["min"], 98) <= t) for t in mins])
 
     # xG-DESERVED win prob: same Skellam model but the "lead" is the cumulative xG
     # difference (what the chances deserved), not the actual scoreline -- shows

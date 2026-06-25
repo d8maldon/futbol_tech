@@ -33,9 +33,11 @@ from PIL import Image
 
 ROOT = os.path.join(os.path.dirname(__file__), "..")
 FIG = os.path.join(ROOT, "figures")
-# COCO-pretrained YOLO already on this machine; no download needed.
-DEFAULT_WEIGHTS = os.path.join(
-    ROOT, "..", "Image-Processing", "Object Detect", "yolov8n.pt")
+# COCO fallback detector. Prefer a local copy under data/models/, else let
+# ultralytics fetch yolov8n.pt by name (cached after first download) -- portable
+# instead of a machine-specific path.
+_LOCAL_COCO = os.path.join(ROOT, "data", "models", "yolov8n.pt")
+DEFAULT_WEIGHTS = _LOCAL_COCO if os.path.exists(_LOCAL_COCO) else "yolov8n.pt"
 
 BG = "#0d1117"
 INK = "#e6edf3"
@@ -54,8 +56,12 @@ def foot_point(box):
 
 
 _DET = {}
-# a soccer-tuned detector (player/goalkeeper/referee/ball) beats COCO 'person':
-# it never fires on crowd/bench (no generic person class). Auto-used if present.
+# A soccer-tuned 4-class detector (ball/goalkeeper/player/referee) beats COCO
+# 'person': it never fires on crowd/bench (no generic person class). Auto-used
+# when present at the path below; otherwise detect() falls back to COCO. To
+# enable it, drop a 4-class YOLO here as data/models/soccer_players.pt -- e.g. the
+# Roboflow "football-players-detection" model used by the `supervision` sports
+# examples (https://github.com/roboflow/sports), exported to .pt.
 SOCCER_WEIGHTS = os.path.join(ROOT, "data", "models", "soccer_players.pt")
 SOCCER_CLS = {"ball": 0, "goalkeeper": 1, "player": 2, "referee": 3}
 

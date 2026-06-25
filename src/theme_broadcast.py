@@ -196,7 +196,7 @@ def _draw_winprob(ax, d, m, ti):
     pxg = float(m["wp_xg"][ti])
     glab = iw * 0.16; bx = ix + glab; bw = iw - 2 * glab
     by = iy + ih * 0.34; bh = ih * 0.40
-    MINW = bw * 0.045
+    MINW = bw * 0.012   # tiny visible sliver only; small enough not to distort the labelled %
     raw = [ph, pdr, pa]
     ws = [max(r * bw, MINW) if r > 0 else 0 for r in raw]
     ws = [w * (bw / sum(ws)) for w in ws]
@@ -424,8 +424,8 @@ def _draw_ratings(ax, d, m, team_rgb):
 
 def _draw_footer(ax):
     _reset(ax)
-    foot = ("Broadcast CV ~5 m zone-grade   ·   win-prob OOS log-loss 0.82   "
-            "·   World-Football-Elo predictor   ·   futbol_tech")
+    foot = ("Broadcast CV ~5 m zone-grade (12 m gate)   ·   World-Football-Elo predictor OOS 0.86   "
+            "·   in-game win-prob: score-anchored   ·   futbol_tech")
     ax.text(0.004, 0.5, foot, transform=ax.transAxes, ha="left", va="center", color=INK3,
             fontsize=9.5, fontfamily=F_COND)
     ax.text(0.996, 0.5, "PITCHVISION · LIVE MATCH INTELLIGENCE", transform=ax.transAxes, ha="right",

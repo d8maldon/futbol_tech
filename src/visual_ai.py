@@ -297,7 +297,7 @@ def render(states, team_rgb, m, out, fps, title, label="", frame_min_override=No
                      color="white", fontsize=8, **F)
         xph = float(m["wp_xg"][ti])                       # xG-DESERVED ARG win% (white tick)
         axw.add_patch(plt.Rectangle((xph - 0.0015, -0.05), 0.003, 1.1, color="white", zorder=6, clip_on=False))
-        axw.set_title("LIVE WIN PROBABILITY  ·  bar = score-based (OOS 0.82);  white tick = xG-deserved (ARG {:.0%})".format(xph),
+        axw.set_title("LIVE WIN PROBABILITY  ·  bar = score-anchored (Elo OOS 0.86);  white tick = xG-deserved (ARG {:.0%})".format(xph),
                       color=MUT, loc="center", fontsize=9, **F)
 
         # ===== BROADCAST =====
@@ -453,6 +453,7 @@ def main():
     ap.add_argument("--limit", type=int, default=0, help="cap frames (for a quick test)")
     ap.add_argument("--range", default="", help="A,B render only states[A:B] to a _testAB file")
     ap.add_argument("--theme", default="broadcast", help="broadcast | editorial | telemetry | legacy")
+    ap.add_argument("--match-id", default=MATCH_ID, help="FotMob match id for the always-on data row")
     args = ap.parse_args()
     os.makedirs(FIG, exist_ok=True)
     frame_dir = os.path.join(CLIPS, args.name)
@@ -484,7 +485,7 @@ def main():
             return
 
     team_rgb = display_palette(team_rgb)
-    m = MD.load(MATCH_ID)
+    m = MD.load(args.match_id)
     print("match data: {} {}-{} {} | pre-match P(H) {:.2f} | POTM {}".format(
         m["home"], m["final_h"], m["final_a"], m["away"], m["pre_match"]["p_h"],
         m["ratings"][0]["name"] if m["ratings"] else "?"))

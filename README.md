@@ -209,6 +209,13 @@ Mean localisation error **5.1 m** (95% CI 4.8-6.2), 53% within 5 m across eight
 clips, around the GS-HOTA 5 m tolerance: heatmap-grade positioning of the
 visible players.
 
+> Honest caveat (see `AUDIT.md`): this figure is computed over players matched
+> within a 12 m gate, and the per-clip x/y orientation is chosen against ground
+> truth -- so it is the localisation error *of the players the pipeline placed
+> well*, not an unconditional figure. Gross homography/orientation failures are
+> excluded from the statistic. Treat it as "~5 m, zone-accurate, relative
+> positioning robust", not metre-precise per-player tracking.
+
 What did **not** work, tested and reported as such: higher input resolution does
 not help (`src/cv_compare.py` runs 480p against 1080p through the identical
 pipeline -- the detector downscales internally, and a larger inference size
@@ -314,7 +321,9 @@ python src/highlights.py         # eval-bar board: the tournament's biggest win-
 python src/chances.py            # xG chance map: every shot rated by goal probability
 python src/tactical_clip.py      # animated broadcast -> top-down side-by-side (visible players)
 
-# vision (computer-vision deps; weights pulled from HuggingFace)
+# vision (computer-vision deps; pitch-keypoint model auto-fetched from HuggingFace,
+# see homography.py; the soccer player detector is optional -- drop a 4-class YOLO
+# at data/models/soccer_players.pt, else it falls back to COCO, see broadcast_track.py)
 python src/homography.py --frame <frame>     # broadcast -> top-down
 python src/track_fuse.py --frames-dir <dir>  # temporal fusion tracker
 python src/validate_topdown.py   # metres-accuracy vs SoccerNet GSR
@@ -322,6 +331,12 @@ python src/cv_compare.py         # 480p vs 1080p ablation (resolution is not the
 python src/fuse_eval.py          # off-screen reconstruction benchmark (a negative result)
 python src/tactical.py --frame <frame>       # kit-colour team shapes on one frame
 python src/live_screen.py --camera 1 --show  # live, phone-as-webcam at a TV
+
+# visual-AI dashboard (themeable; one CV+data pass, three audience skins)
+python src/visual_ai.py --video <clip.mp4> --name argentina_full --fps 6 --cv-only   # build the tracking cache once
+python src/visual_ai.py --name argentina_full --render-only --theme broadcast        # / editorial / telemetry
+python src/live_dashboard.py --theme telemetry --source synthetic --out figures/_live_demo.mp4  # real-time runner (OpenCV encode, no ffmpeg)
+python src/analyst.py            # agentic per-tick match-analyst insights (rule-based; --claude for the LLM backend)
 ```
 
 ## References

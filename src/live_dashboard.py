@@ -8,8 +8,8 @@ Frame sources (each yields (state, match_data, minute) tuples):
   synthetic : loops the preview harness, no GPU/camera   -> for testing the loop
   states    : a precomputed cv_pass cache (_states.pkl)   -> re-time an offline clip
   video     : a video file, CV pass per frame            -> needs the GPU detector
-  screen    : a screen region via mss (a TV stream win)  -> needs mss
-  camera    : a webcam / phone-as-webcam via cv2          -> needs a device
+  screen    : (scaffold) a screen region via mss          -> wire the CV pass, see source_video
+  camera    : (scaffold) a webcam / phone-as-webcam       -> wire the CV pass, see source_video
 
 Matplotlib paints ~6-10 fps (fine for an analyst overlay or a recording). For true
 30fps+ broadcast overlay, port draw_frame's primitives to a cv2/OpenGL backend --
@@ -144,7 +144,8 @@ def _make_source(args):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--theme", default="broadcast")
-    ap.add_argument("--source", default="synthetic", help="synthetic|states|video|camera")
+    ap.add_argument("--source", default="synthetic",
+                    help="synthetic | states | video  (screen/camera are scaffolds: wire your CV pass like source_video)")
     ap.add_argument("--name", default="argentina_full", help="states-cache name")
     ap.add_argument("--video", default="")
     ap.add_argument("--device", type=int, default=0)
