@@ -6,7 +6,7 @@ requests
 urllib3
 scikit-learn
 scipy
-mplsoccer          # battle-tested pitch rendering + Voronoi pitch control (dashboard themes)
+mplsoccer<1.5      # pitch rendering + Voronoi pitch control (dashboard themes); 1.5+ needs Python 3.10
 
 # computer vision (broadcast -> top-down, live input, validation)
 opencv-python

@@ -104,26 +104,28 @@ def run(theme, source, out_path=None, show=False, fps=8, limit=0, team_rgb=None)
         team_rgb = P.TEAM_RGB
     r = Renderer(theme, team_rgb)
     writer, n = None, 0
-    for state, m, ti in source:
-        frame = r.paint(state, m, ti)
-        if out_path:
-            if writer is None:
-                h, w = frame.shape[:2]
-                os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
-                writer = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
-            writer.write(frame)
-        if show:
-            cv2.imshow("futbol_tech dashboard", frame)
-            if cv2.waitKey(1) & 0xFF == 27:   # Esc
+    try:
+        for state, m, ti in source:
+            frame = r.paint(state, m, ti)
+            if out_path:
+                if writer is None:
+                    h, w = frame.shape[:2]
+                    os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+                    writer = cv2.VideoWriter(out_path, cv2.VideoWriter_fourcc(*"mp4v"), fps, (w, h))
+                writer.write(frame)
+            if show:
+                cv2.imshow("futbol_tech dashboard", frame)
+                if cv2.waitKey(1) & 0xFF == 27:   # Esc
+                    break
+            n += 1
+            if limit and n >= limit:
                 break
-        n += 1
-        if limit and n >= limit:
-            break
-    if writer:
-        writer.release()
-    if show:
-        cv2.destroyAllWindows()
-    plt.close(r.fig)
+    finally:                                   # always release the writer/figure, even mid-frame error
+        if writer:
+            writer.release()
+        if show:
+            cv2.destroyAllWindows()
+        plt.close(r.fig)
     return n
 
 

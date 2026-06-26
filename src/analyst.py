@@ -127,7 +127,10 @@ def claude_insight(m, ti, state=None, model="claude-haiku-4-5-20251001"):
     import json
     if not os.environ.get("ANTHROPIC_API_KEY"):
         return None
-    import anthropic
+    try:
+        import anthropic
+    except ImportError:                       # key set but SDK not installed -> stay rule-based
+        return None
     client = anthropic.Anthropic()
     msg = client.messages.create(
         model=model, max_tokens=120,
